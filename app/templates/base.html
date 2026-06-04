@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}DBA ChangeOps AI 工作台{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}?v=20260602-product">
+  </head>
+  <body>
+    {% set nav = active_nav|default('cases') %}
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/">
+          <span class="brand-mark">DB</span>
+          <span>
+            <strong>DBA ChangeOps</strong>
+            <small>AI 变更交付工作台</small>
+          </span>
+        </a>
+        <nav class="nav">
+          <a class="nav-item {{ 'active' if nav == 'cases' else '' }}" href="/">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg>
+            案例
+          </a>
+          <a class="nav-item {{ 'active' if nav == 'demo' else '' }}" href="/demo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V5l14 7-14 7Z"/></svg>
+            交付演示
+          </a>
+          <a class="nav-item {{ 'active' if nav == 'audit' else '' }}" href="/demo#audit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16H7zM9 8h6M9 12h6M9 16h4"/></svg>
+            审计
+          </a>
+          <a class="nav-item {{ 'active' if nav == 'export' else '' }}" href="/demo#export">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"/></svg>
+            导出
+          </a>
+          <a class="nav-item {{ 'active' if nav == 'ops' else '' }}" href="/ops">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h16M6 17V7m6 10V4m6 13v-6"/></svg>
+            运行状态
+          </a>
+        </nav>
+        <div class="sidebar-note">
+          <span class="status-dot"></span>
+          当前可离线生成交付包。配置 `LLM_API_KEY` 后即可调用真实模型。
+        </div>
+      </aside>
+      <div class="content-shell">
+        <header class="topbar">
+          <div>
+            <p class="section-label">数据库运维 AI 产品</p>
+            <h1>{% block page_title %}AI 变更交付控制台{% endblock %}</h1>
+          </div>
+          <a class="button primary" href="/cases/new">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            新建案例
+          </a>
+        </header>
+        <main>
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+    <script src="{{ url_for('static', path='/app.js') }}?v=20260602-product"></script>
+  </body>
+</html>

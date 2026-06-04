@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}第 {{ run.id }} 次分析 · DBA ChangeOps{% endblock %}
+{% block page_title %}AI 变更交付包{% endblock %}
+{% block content %}
+{% set delivery = delivery_summary(run) %}
+{% set signoff = run_signoff_summary(run) %}
+<section class="run-layout">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>{{ case.title }}</h2>
+        <p>第 {{ run.id }} 次分析 · {{ run.provider|provider_label }} / {{ run.model|provider_label }} · {{ run.completed_at|dt }}</p>
+      </div>
+      <span class="chip {{ 'risk' if run.error_message else '' }}">{{ run.status|status_label }}</span>
+    </div>
+    {% if run.error_message %}
+      <div class="notice warning">
+        模型调用失败，当前交付包已使用离线兜底结果。可以查看审计记录后重新生成。
+      </div>
+    {% endif %}
+    <p class="summary">{{ run.summary }}</p>
+    <div class="artifact-stack">
+      {% for artifact in run.artifacts %}
+        <section class="artifact">
+          <div class="artifact-header">
+            <div>
+              <h3>{{ artifact.title }}</h3>
+              <small>状态：{{ artifact.status|status_label }} · 更新：{{ artifact.updated_at|dt }}</small>
+            </div>
+            <div class="artifact-actions">
+              <form method="post" action="/artifacts/{{ artifact.id }}/approve">
+                <button class="button mini {{ 'approved' if artifact.status == 'approved' else 'secondary' }}" type="submit">
+                  {{ '已确认' if artifact.status == 'approved' else '确认' }}
+                </button>
+              </form>
+            </div>
+          </div>
+          <form method="post" action="/artifacts/{{ artifact.id }}" class="artifact-editor" data-loading-form>
+            <textarea
+              name="content"
+              rows="{{ 10 if artifact.artifact_type == 'precheck_sql' else 8 }}"
+              aria-label="编辑{{ artifact.title }}"
+              class="{{ 'code-editor' if artifact.artifact_type == 'precheck_sql' else '' }}"
+            >{{ artifact.content }}</textarea>
+            <div class="editor-footer">
+              <span>人工修改后状态会回到草稿，需要重新确认。</span>
+              <button class="button mini secondary" type="submit" data-loading-text="保存中...">保存编辑</button>
+            </div>
+          </form>
+          {% if artifact.revisions %}
+            <div class="revision-list">
+              <div class="revision-list-heading">
+                <strong>版本记录</strong>
+                <span class="revision-links">
+                  <a class="revision-api-link" href="/api/artifacts/{{ artifact.id }}/revisions">版本 JSON</a>
+                  <a class="revision-api-link" href="/api/artifacts/{{ artifact.id }}/diff">差异 JSON</a>
+                </span>
+              </div>
+              <div class="revision-items">
+                {% for revision in artifact.revisions %}
+                  {% if loop.index <= 4 %}
+                    <span class="revision-item">
+                      v{{ revision.version }} · {{ revision.event|event_label }} · {{ revision.status|status_label }} · {{ revision.created_at|dt }}
+                    </span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              {% set diff = artifact_content_diff(artifact) %}
+              <div class="revision-diff">
+                <div class="revision-diff-header">
+                  <strong>最近内容变化</strong>
+                  <span>{{ diff.state_label }}</span>
+                </div>
+                {% if diff.available %}
+                  <div class="revision-diff-stats">
+                    <span class="diff-add">新增 {{ diff.additions }} 行</span>
+                    <span class="diff-del">删除 {{ diff.deletions }} 行</span>
+                  </div>
+                  <pre class="diff-content">{% for line in diff.lines %}<span class="diff-line {{ line.kind }}">{{ '+' if line.kind == 'add' else '-' if line.kind == 'del' else ' ' }} {{ line.text }}</span>{% endfor %}</pre>
+                {% else %}
+                  <p class="revision-diff-empty">当前只有 AI 初稿，或最近版本事件没有改变正文。</p>
+                {% endif %}
+              </div>
+              <div class="revision-snapshots" aria-label="{{ artifact.title }}版本快照">
+                <span class="revision-snapshot-title">版本快照</span>
+                {% for revision in artifact.revisions %}
+                  {% if loop.index <= 3 %}
+                    <details class="revision-detail">
+                      <summary>
+                        v{{ revision.version }} · {{ revision.event|event_label }} · {{ revision.status|status_label }} · {{ revision.created_at|dt }}
+                      </summary>
+                      <pre class="revision-content">{{ revision.content }}</pre>
+                    </details>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        </section>
+      {% endfor %}
+    </div>
+  </article>
+  <aside class="panel audit-panel">
+    <div class="delivery-summary {{ 'complete' if delivery.is_complete else '' }}">
+      <div class="delivery-summary-header">
+        <span>交付完成度</span>
+        <strong>{{ delivery.label }}</strong>
+      </div>
+      <div class="progress-track" aria-label="交付完成度 {{ delivery.percent }}%">
+        <span style="width: {{ delivery.percent }}%"></span>
+      </div>
+      <p>{{ delivery.state_label }}</p>
+      {% if delivery.pending_titles %}
+        <small>待确认：{{ delivery.pending_titles[:3]|join('、') }}{% if delivery.pending_titles|length > 3 %} 等{% endif %}</small>
+      {% endif %}
+    </div>
+    <div class="signoff-panel {{ 'signed' if signoff.is_signed else '' }}">
+      <div class="signoff-header">
+        <div>
+          <span>交付签收</span>
+          <strong>{{ signoff.label }}</strong>
+        </div>
+        {% if signoff.is_signed %}
+          <span class="chip approved">已签收</span>
+        {% endif %}
+      </div>
+      {% if signoff.is_signed %}
+        <div class="signoff-meta">
+          <span><strong>签收人</strong>{{ signoff.signed_by }}</span>
+          <span><strong>签收时间</strong>{{ signoff.signed_at }}</span>
+        </div>
+        {% if signoff.signoff_note %}
+          <p>{{ signoff.signoff_note }}</p>
+        {% endif %}
+      {% elif delivery.is_complete %}
+        <form method="post" action="/runs/{{ run.id }}/signoff" class="signoff-form" data-loading-form>
+          <label>
+            <span>签收人</span>
+            <input name="signed_by" value="{{ case.approver or case.owner or '变更审批人' }}" />
+          </label>
+          <label>
+            <span>签收说明</span>
+            <textarea name="signoff_note" rows="3">交付物已复核，允许进入变更评审或执行前沟通。</textarea>
+          </label>
+          <button class="button approved" type="submit" data-loading-text="签收中...">签收交付包</button>
+        </form>
+      {% else %}
+        <p>全部交付物确认后可由审批人签收。</p>
+      {% endif %}
+    </div>
+    <div class="panel-header">
+      <div>
+        <h2>LLM 调用审计</h2>
+        <p>模型请求、耗时、状态和失败原因都会被记录</p>
+      </div>
+    </div>
+    {% for log in run.llm_logs %}
+      <div class="audit-entry">
+        <span class="chip">{{ log.status|status_label }}</span>
+        <strong>{{ log.provider|provider_label }} / {{ log.model|provider_label }}</strong>
+        <small>{{ log.latency_ms }} ms · {{ log.created_at|dt }}</small>
+        {% if log.error_message %}
+          <p>{{ log.error_message }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <div class="action-column">
+      {% if not delivery.is_complete %}
+        <form method="post" action="/runs/{{ run.id }}/approve-all" data-loading-form>
+          <button class="button approved" type="submit" data-loading-text="确认中...">确认全部交付物</button>
+        </form>
+      {% endif %}
+      <form method="post" action="/cases/{{ case.id }}/analyze" data-loading-form>
+        <button class="button primary" type="submit" data-loading-text="重新生成中...">重新生成交付方案</button>
+      </form>
+      <a class="button secondary" href="/cases/{{ case.id }}">返回案例</a>
+      <a class="button secondary" href="/cases/{{ case.id }}/export">导出 Markdown</a>
+      <a class="button secondary" href="/cases/{{ case.id }}/export.pdf">导出 PDF</a>
+    </div>
+  </aside>
+</section>
+{% endblock %}

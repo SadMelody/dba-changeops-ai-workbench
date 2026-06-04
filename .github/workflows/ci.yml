@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-and-smoke:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: ci
+      DATABASE_URL: sqlite:///./changeops-ci.db
+      LLM_API_KEY: ""
+      LLM_BASE_URL: https://api.openai.com/v1
+      LLM_MODEL: offline-demo
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Start local app
+        shell: bash
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn-ci.log 2>&1 &
+          echo $! > uvicorn-ci.pid
+
+      - name: Wait for health check
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/healthz"
+              if ($health.status -eq "ok" -and $health.database -eq "ok") {
+                Write-Host "App is healthy."
+                exit 0
+              }
+            }
+            catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+          Get-Content uvicorn-ci.log -ErrorAction SilentlyContinue
+          throw "App did not become healthy in time."
+
+      - name: Run final acceptance
+        shell: pwsh
+        run: ./scripts/final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000 -PythonCommand python
+
+      - name: Generate demo export samples
+        shell: pwsh
+        run: ./scripts/generate_demo_exports.ps1 -BaseUrl http://127.0.0.1:8000
+
+      - name: Stop local app
+        if: always()
+        shell: bash
+        run: |
+          if [ -f uvicorn-ci.pid ]; then
+            kill "$(cat uvicorn-ci.pid)" || true
+          fi
+
+      - name: Clean CI runtime artifacts
+        shell: pwsh
+        run: ./scripts/clean_release_artifacts.ps1
+
+      - name: Run release readiness audit
+        shell: pwsh
+        run: ./scripts/release_readiness.ps1 -SkipRuntime
+
+      - name: Upload CI logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uvicorn-ci-log
+          path: uvicorn-ci.log

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}新建变更案例 · DBA ChangeOps{% endblock %}
+{% block page_title %}新建数据库变更案例{% endblock %}
+{% block content %}
+<form class="panel form-panel" method="post" action="/cases">
+  <div class="form-grid">
+    <label>
+      <span>案例标题</span>
+      <input name="title" required value="DB2 结算报表慢查询在线加索引">
+    </label>
+    <label>
+      <span>数据库类型</span>
+      <input name="db_type" value="DB2 LUW">
+    </label>
+    <label>
+      <span>目标系统</span>
+      <input name="target_system" value="订单结算平台">
+    </label>
+    <label>
+      <span>变更类型</span>
+      <input name="change_type" value="在线创建索引">
+    </label>
+    <label>
+      <span>优先级</span>
+      <select name="priority">
+        <option>P1</option>
+        <option selected>P2</option>
+        <option>P3</option>
+      </select>
+    </label>
+    <label>
+      <span>环境</span>
+      <input name="environment" value="生产">
+    </label>
+    <label>
+      <span>负责人</span>
+      <input name="owner" value="DBA 值班负责人">
+    </label>
+    <label>
+      <span>审批人</span>
+      <input name="approver" value="变更经理">
+    </label>
+    <label>
+      <span>计划窗口</span>
+      <input name="planned_window" value="2026-06-03 23:00-00:30">
+    </label>
+  </div>
+  <label>
+    <span>业务背景</span>
+    <textarea name="business_context" rows="4">月度结算报表在高峰期频繁超时，运维希望通过在线索引变更改善查询，并要求方案具备可回滚的执行 Runbook。</textarea>
+  </label>
+  <label>
+    <span>SQL 或操作命令</span>
+    <textarea name="source_sql" rows="6">CREATE INDEX IX_ORDERS_SETTLE_DATE_STATUS
+ON APP.ORDERS (SETTLE_DATE, STATUS)
+ALLOW REVERSE SCANS;</textarea>
+  </label>
+  <label>
+    <span>表结构说明</span>
+    <textarea name="schema_notes" rows="4">APP.ORDERS 约 8500 万行，现有索引覆盖 ORDER_ID 和 CUSTOMER_ID。该表参与夜间 ETL 和月末报表。</textarea>
+  </label>
+  <label>
+    <span>约束条件</span>
+    <textarea name="constraints" rows="3">维护窗口：23:00-00:30。避免长时间排他锁。回滚动作需要控制在 10 分钟内。</textarea>
+  </label>
+  <div class="action-row">
+    <button class="button primary" type="submit">保存案例</button>
+    <a class="button secondary" href="/">取消</a>
+  </div>
+</form>
+{% endblock %}

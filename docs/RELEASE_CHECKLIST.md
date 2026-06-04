@@ -1,0 +1,150 @@
+# 线上发布检查表
+
+这份清单用于把本地演示版收敛成可以投递简历、面试展示或发给面试官查看的在线版本。
+
+## 发布前
+
+1. 确认本地验收通过：
+
+```powershell
+.\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+2. 刷新样例交付包：
+
+```powershell
+.\scripts\generate_demo_exports.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+3. 预览并清理本地运行产物：
+
+```powershell
+.\scripts\clean_release_artifacts.ps1 -WhatIf
+.\scripts\clean_release_artifacts.ps1
+```
+
+4. 运行交付就绪审计：
+
+```powershell
+.\scripts\release_readiness.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+该审计会在发现 `.env`、本地数据库、日志、进程 pid 文件、Python 缓存或 pytest 缓存残留时失败；如果失败，先重新运行 `scripts/clean_release_artifacts.ps1`。
+
+5. 确认 README 顶部截图和样例链接可打开。
+6. 确认 `.env` 没有提交真实密钥。
+7. 确认 GitHub Actions CI 通过。
+
+## 部署环境
+
+必填：
+
+```text
+APP_ENV=production
+DATABASE_URL=postgresql+psycopg://...
+```
+
+可选：
+
+```text
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_API_KEY=...
+LLM_MODEL=qwen-plus
+```
+
+如果暂时没有模型 Key，可以不配置 `LLM_API_KEY`。系统会进入离线兜底模式，但仍然能完整生成、确认、签收和导出交付包。
+
+部署平台变量填写口径：
+
+| 变量 | 是否必填 | 建议值 | 说明 |
+| --- | --- | --- | --- |
+| `APP_ENV` | 是 | `production` | 用于区分线上运行环境。 |
+| `DATABASE_URL` | 是 | `postgresql+psycopg://...` | 使用托管 PostgreSQL；不要使用本地 SQLite。 |
+| `LLM_BASE_URL` | 否 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 保留国内 OpenAI-compatible 服务入口。 |
+| `LLM_MODEL` | 否 | `qwen-plus` | 真实模型启用时使用。 |
+| `LLM_API_KEY` | 否 | 留空或真实 Key | 留空时走离线兜底，更适合稳定公开演示。 |
+
+上线第一版建议先不填 `LLM_API_KEY`。这样可以先证明页面、数据库、审计、确认、签收和导出闭环稳定可用；真实模型接入可以作为面试中的扩展能力说明。
+
+## 上线后验收
+
+把下面的 `https://your-app.example.com` 替换成真实线上地址。
+
+```powershell
+.\scripts\smoke_check.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+```
+
+面向公开投递时，建议再运行线上发布验收包装脚本：
+
+```powershell
+.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+```
+
+验收通过后，自动回填 README 顶部发布区：
+
+```powershell
+.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+```
+
+最后运行公开交付审计，确认线上地址、视频链接、README 回填和本地发布材料都已就绪：
+
+```powershell
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo
+```
+
+视频链接需要是面试官无需登录即可访问的公开或半公开地址。审计脚本会实际访问该地址；如果视频链接返回 404、需要登录、权限不足或临时链接过期，就不要投递。
+
+公开投递前，最终状态应该满足：
+
+| 检查项 | 通过标准 |
+| --- | --- |
+| 线上演示 | `https://.../healthz` 返回 `status: ok` 和 `database: ok`。 |
+| 演示闭环 | `scripts/verify_online_release.ps1 -CompleteDemo` 通过。 |
+| 视频链接 | 无需登录，脚本访问不返回 4xx/5xx。 |
+| README | 顶部包含真实在线演示地址和备用视频链接。 |
+| 发布审计 | `scripts/delivery_status.ps1 -CompleteDemo -Strict` 返回 `ready: true`。 |
+
+如果还没有拿到线上地址或视频链接，可以先运行状态汇总，看清楚剩余外部事项：
+
+```powershell
+.\scripts\delivery_status.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+手工检查：
+
+- 首页能打开，且显示中文工作台和 5 个内置 DBA 场景。
+- `/demo` 能一键完整闭环。
+- `/ops` 显示数据库连接正常、运行状态可用。
+- `/healthz` 返回 `status: ok` 和 `database: ok`。
+- Markdown 和 PDF 导出可以下载。
+- LLM 审计面板能显示真实调用或离线兜底状态。
+
+## README 发布口径
+
+线上地址可用后，在 README 顶部加入：
+
+```markdown
+在线演示：<你的线上地址>
+
+备用材料：
+
+- [样例 Markdown 交付包](artifacts/samples/changeops-demo-delivery.md)
+- [样例 PDF 交付包](artifacts/samples/changeops-demo-delivery.pdf)
+- [3-5 分钟演示脚本](docs/DEMO_SCRIPT.md)
+```
+
+如果线上模型 Key 没有配置，可以明确写：
+
+```text
+在线演示默认使用离线兜底模式，便于稳定展示完整交付闭环；代码支持通过 OpenAI-compatible 接口接入通义千问、DeepSeek 等模型。
+```
+
+## 面试前 30 分钟
+
+- 打开线上首页，确认冷启动完成。
+- 打开 `/demo`，提前跑一次“一键完整闭环”。
+- 下载一份 PDF，确认中文内容正常。
+- 保留本地服务作为备用。
+- 准备 3-5 分钟演示视频或本地录屏文件；公开视频地址必须无需登录即可播放或下载。
+- 使用 `scripts/update_release_links.ps1` 回填 README 在线演示和视频链接。
+- 准备一句兜底说明：模型不可用时系统会保留审计记录，并使用内置 DB2 场景模板保证交付流程不中断。

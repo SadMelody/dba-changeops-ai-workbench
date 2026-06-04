@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}交付演示台 · DBA ChangeOps{% endblock %}
+{% block page_title %}交付演示台{% endblock %}
+{% block content %}
+<section class="demo-hero panel">
+  <div>
+    <p class="section-label">标准交付路径</p>
+    <h2>从 DBA 变更输入到可审计交付包</h2>
+    <p>
+      推荐用 DB2 慢查询索引变更案例演示：先说明结构化输入，再生成 AI 交付物，
+      最后展示人工确认、审计日志和 Markdown/PDF 导出。
+    </p>
+    <div class="demo-proof-row" aria-label="演示可靠性证明">
+      <span>无 Key 可完整演示</span>
+      <span>DB2 场景化输出</span>
+      <span>审计记录可追踪</span>
+    </div>
+  </div>
+  <div class="demo-scoreboard">
+    <span><strong>{{ workbench.ready_label }}</strong>方案准备</span>
+    <span><strong>{{ workbench.artifact_label }}</strong>复核进度</span>
+    <span><strong>{{ workbench.signed_label }}</strong>签收进度</span>
+    <span><strong>{{ workbench.fallback_runs }}</strong>兜底记录</span>
+  </div>
+</section>
+
+<section class="demo-layout">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>交付路径</h2>
+        <p>按这个顺序验证，能快速看到产品闭环</p>
+      </div>
+    </div>
+    <div class="demo-steps">
+      <div>
+        <strong>01 定位</strong>
+        <p>这是数据库运维变更交付系统，不是开放式聊天页面。</p>
+      </div>
+      <div>
+        <strong>02 输入</strong>
+        <p>案例包含数据库类型、SQL、表结构说明、约束条件和业务背景。</p>
+      </div>
+      <div>
+        <strong>03 生成</strong>
+        <p>模型输出被约束成风险、Runbook、回滚、检查和沟通材料；离线模式也会按 DB2 场景生成专项内容。</p>
+      </div>
+      <div id="audit">
+        <strong>04 复核</strong>
+        <p>交付物可人工编辑和确认，版本快照会保留 AI 生成与人工修改记录。</p>
+      </div>
+      <div id="export">
+        <strong>05 交付</strong>
+        <p>整包确认后签收，再导出 Markdown/PDF，包含完成度、签收、版本记录、LLM 审计和页码。</p>
+      </div>
+    </div>
+  </article>
+
+  <aside class="panel demo-aside">
+    <div class="panel-header">
+      <div>
+        <h2>推荐试跑案例</h2>
+        <p>优先展示 DB2 背景和可控变更流程</p>
+      </div>
+    </div>
+    {% if demo_case %}
+      <div class="demo-case-card">
+        <span class="chip priority">{{ demo_case.priority }}</span>
+        <h3>{{ demo_case.title }}</h3>
+        <p>{{ demo_case.db_type }} · {{ demo_case.target_system }} · {{ demo_case.change_type }}</p>
+        <div class="metadata-grid compact">
+          <span><strong>分析次数</strong>{{ demo_case.runs|length }}</span>
+          <span><strong>状态</strong>{{ demo_case.status|status_label }}</span>
+        </div>
+        {% if latest_run %}
+          {% set latest_delivery = delivery_summary(latest_run) %}
+          {% set latest_signoff = run_signoff_summary(latest_run) %}
+          <div class="compact-delivery">
+            <span>{{ latest_delivery.label }}</span>
+            <small>{{ latest_delivery.state_label }}</small>
+          </div>
+          <div class="compact-delivery signoff-compact">
+            <span>{{ latest_signoff.label }}</span>
+            <small>
+              {% if latest_signoff.is_signed %}
+                {{ latest_signoff.signed_by }} · {{ latest_signoff.signed_at }}
+              {% else %}
+                整包确认后可签收
+              {% endif %}
+            </small>
+          </div>
+        {% endif %}
+        <div class="action-column">
+          <form method="post" action="/demo/start" data-loading-form>
+            <button class="button primary" type="submit" data-loading-text="生成交付包中...">一键生成交付包</button>
+          </form>
+          <form method="post" action="/demo/complete" data-loading-form>
+            <button class="button approved" type="submit" data-loading-text="生成并签收中...">一键完整闭环</button>
+          </form>
+          <a class="button secondary" href="/cases/{{ demo_case.id }}">查看案例输入</a>
+          {% if latest_run %}
+            <a class="button secondary" href="/cases/{{ demo_case.id }}/runs/{{ latest_run.id }}">查看最新交付包</a>
+            <a class="button secondary" href="/cases/{{ demo_case.id }}/export">导出 Markdown</a>
+            <a class="button secondary" href="/cases/{{ demo_case.id }}/export.pdf">导出 PDF</a>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <div class="empty-state">暂无可试跑案例。</div>
+    {% endif %}
+  </aside>
+</section>
+{% endblock %}

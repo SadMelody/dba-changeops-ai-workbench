@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.venv/
+.env
+.omx/
+*.db
+*.db-journal
+*.log
+*.pid
+artifacts/tmp/
+artifacts/releases/

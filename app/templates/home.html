@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}DBA ChangeOps AI 工作台{% endblock %}
+{% block content %}
+<section class="readiness-panel">
+  <div class="readiness-heading">
+    <p class="section-label">交付就绪度</p>
+    <h2>一眼掌握变更交付状态</h2>
+  </div>
+  <div class="readiness-metrics">
+    <div>
+      <strong>{{ workbench.total_cases }}</strong>
+      <span>案例库</span>
+    </div>
+    <div>
+      <strong>{{ workbench.ready_label }}</strong>
+      <span>已生成方案</span>
+    </div>
+    <div>
+      <strong>{{ workbench.artifact_label }}</strong>
+      <span>人工确认进度</span>
+    </div>
+    <div>
+      <strong>{{ workbench.signed_label }}</strong>
+      <span>交付签收</span>
+    </div>
+    <div>
+      <strong>{{ workbench.fallback_runs }}</strong>
+      <span>离线兜底记录</span>
+    </div>
+  </div>
+</section>
+
+<section class="dashboard-grid">
+  <div class="panel case-list-panel">
+    <div class="panel-header">
+      <div>
+        <h2>变更案例</h2>
+        <p>包含 5 个内置 DBA 场景，也可加入自定义变更案例</p>
+      </div>
+      <a class="button secondary" href="/cases/new">创建</a>
+    </div>
+    {% if cases %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>案例</th>
+              <th>数据库</th>
+              <th>优先级</th>
+              <th>状态</th>
+              <th>更新时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for case in cases %}
+            <tr onclick="window.location='/cases/{{ case.id }}'">
+              <td>
+                <strong>{{ case.title }}</strong>
+                <small>{{ case.change_type }} · {{ case.target_system }}</small>
+              </td>
+              <td>{{ case.db_type }}</td>
+              <td><span class="chip priority">{{ case.priority }}</span></td>
+              <td><span class="chip">{{ case.status|status_label }}</span></td>
+              <td>{{ case.updated_at|dt }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state">暂无案例。创建一个 DB2 变更案例开始交付试跑。</div>
+    {% endif %}
+  </div>
+
+  <aside class="panel detail-panel">
+    {% if selected %}
+      <div class="panel-header">
+        <div>
+          <h2>{{ selected.title }}</h2>
+          <p>{{ selected.db_type }} · {{ selected.target_system }}</p>
+        </div>
+        <span class="chip risk">DBA 复核</span>
+      </div>
+      <div class="metadata-grid">
+        <span><strong>类型</strong>{{ selected.change_type }}</span>
+        <span><strong>优先级</strong>{{ selected.priority }}</span>
+        <span><strong>分析次数</strong>{{ selected.runs|length }}</span>
+        <span><strong>状态</strong>{{ selected.status|status_label }}</span>
+      </div>
+      <p class="body-copy">{{ selected.business_context }}</p>
+      <pre class="code-block">{{ selected.source_sql }}</pre>
+      <div class="action-row">
+        <form method="post" action="/cases/{{ selected.id }}/analyze" data-loading-form>
+          <button class="button primary" type="submit" data-loading-text="生成中...">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 3-2 7H5l6 3-2 8 7-10h-6l3-8Z"/></svg>
+            生成交付方案
+          </button>
+        </form>
+        <a class="button secondary" href="/cases/{{ selected.id }}">打开</a>
+      </div>
+      {% if latest_run %}
+        <div class="run-summary">
+          <h3>最新 AI 输出</h3>
+          {% set latest_delivery = delivery_summary(latest_run) %}
+          {% set latest_signoff = run_signoff_summary(latest_run) %}
+          <div class="compact-delivery">
+            <span>{{ latest_delivery.label }}</span>
+            <small>{{ latest_delivery.state_label }}</small>
+          </div>
+          <div class="compact-delivery signoff-compact">
+            <span>{{ latest_signoff.label }}</span>
+            <small>
+              {% if latest_signoff.is_signed %}
+                {{ latest_signoff.signed_by }} · {{ latest_signoff.signed_at }}
+              {% else %}
+                整包确认后可签收
+              {% endif %}
+            </small>
+          </div>
+          <p>{{ latest_run.summary }}</p>
+          <a href="/cases/{{ selected.id }}/runs/{{ latest_run.id }}">查看交付物</a>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-state">创建第一个变更案例。</div>
+    {% endif %}
+  </aside>
+</section>
+
+<section class="workflow-strip">
+  <div>
+    <strong>01 输入</strong>
+    <span>变更需求、SQL、表结构说明、约束条件</span>
+  </div>
+  <div>
+    <strong>02 分析</strong>
+    <span>模型失败时按 DB2 场景切换到专项兜底结果</span>
+  </div>
+  <div>
+    <strong>03 交付</strong>
+    <span>Runbook、回滚、检查项、审计日志和导出文档</span>
+  </div>
+</section>
+{% endblock %}

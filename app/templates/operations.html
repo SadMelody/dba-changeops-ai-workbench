@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}运行状态 · DBA ChangeOps{% endblock %}
+{% block page_title %}运行状态{% endblock %}
+{% block content %}
+<section class="ops-hero panel">
+  <div>
+    <p class="section-label">交付核验</p>
+    <h2>{{ status.readiness_label }}</h2>
+    <p>
+      这里集中展示服务、数据库、模型模式、案例数据和交付产物状态。
+      部署后可以先从这个页面确认系统是否具备试运行条件。
+    </p>
+  </div>
+  <span class="status-pill {{ 'ok' if status.ready else 'warning' }}">
+    {{ '可用' if status.ready else '待处理' }}
+  </span>
+</section>
+
+<section class="ops-grid">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>运行检查</h2>
+        <p>用于上线前和现场试运行前快速核验</p>
+      </div>
+      <a class="button secondary" href="/api/system/status">查看 JSON</a>
+    </div>
+    <div class="check-list">
+      {% for check in status.checks %}
+        <div class="check-item">
+          <span class="status-dot-inline {{ check.state }}"></span>
+          <strong>{{ check.name }}</strong>
+          <small>{{ check.label }}</small>
+        </div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <aside class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>环境信息</h2>
+        <p>敏感字段只展示配置状态，不暴露密钥</p>
+      </div>
+    </div>
+    <div class="metadata-grid">
+      <span><strong>环境</strong>{{ status.app_env }}</span>
+      <span><strong>数据库</strong>{{ status.database }}</span>
+      <span><strong>模型模式</strong>{{ status.llm_mode_label }}</span>
+      <span><strong>模型名称</strong>{{ status.llm_model }}</span>
+    </div>
+    <div class="ops-note">
+      <strong>模型接口</strong>
+      <p>{{ status.llm_base_url }}</p>
+    </div>
+  </aside>
+</section>
+
+<section class="readiness-panel">
+  <div class="readiness-heading">
+    <p class="section-label">交付数据</p>
+    <h2>当前工作台统计</h2>
+  </div>
+  <div class="readiness-metrics">
+    <div>
+      <strong>{{ workbench.total_cases }}</strong>
+      <span>案例</span>
+    </div>
+    <div>
+      <strong>{{ workbench.ready_label }}</strong>
+      <span>方案生成</span>
+    </div>
+    <div>
+      <strong>{{ workbench.artifact_label }}</strong>
+      <span>人工确认</span>
+    </div>
+    <div>
+      <strong>{{ workbench.signed_label }}</strong>
+      <span>交付签收</span>
+    </div>
+    <div>
+      <strong>{{ workbench.fallback_runs }}</strong>
+      <span>兜底记录</span>
+    </div>
+  </div>
+</section>
+{% endblock %}

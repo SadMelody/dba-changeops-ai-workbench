@@ -1,0 +1,193 @@
+# 需求覆盖审计
+
+本文件把最初的 DBA ChangeOps AI 工作台计划逐项映射到当前仓库证据，便于面试前自查，也便于面试官快速判断项目完成度。
+
+## 审计结论
+
+当前仓库已经具备本地完整演示闭环：中文 Web 工作台、案例创建、AI 分析、离线兜底、AI 调用审计、人工编辑、版本记录、差异查看、交付确认、整包签收、Markdown/PDF 导出、样例交付包、截图、部署配置、测试、冒烟验收、发布就绪审计和中文界面审计。
+
+仍需外部补齐的项：
+
+- 线上部署 URL：需要部署平台账号生成真实地址。
+- 备用演示视频：需要完成实际录屏和上传。
+
+## 产品能力覆盖
+
+| 计划能力 | 当前证据 | 验收方式 |
+| --- | --- | --- |
+| 创建变更案例 | `POST /api/cases`、`POST /cases`、`app/templates/new_case.html` | `tests/test_workflow.py` |
+| 案例列表和详情页 | `/`、`/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 首页测试、中文界面审计 |
+| AI 分析触发 | `POST /api/cases/{id}/analyze`、`POST /cases/{id}/analyze` | 工作流测试、冒烟脚本 |
+| 历史分析记录 | `GET /api/cases/{id}/runs`、`analysis_runs` | 工作流测试 |
+| 风险评估 | `risk_assessment` 交付物 | 工作流测试检查 6 类交付物 |
+| 执行 Runbook | `runbook` 交付物 | 工作流测试检查 6 类交付物 |
+| 回滚方案 | `rollback_plan` 交付物 | 工作流测试检查 6 类交付物 |
+| 前置检查 SQL | `precheck_sql` 交付物 | 工作流测试检查 6 类交付物 |
+| 验收清单 | `acceptance_checklist` 交付物 | 工作流测试检查 6 类交付物 |
+| 变更沟通摘要 | `communication_summary` 交付物 | 工作流测试检查 6 类交付物 |
+| AI 调用审计 | `llm_call_logs`、结果页审计面板、导出文档审计段落 | 工作流测试、导出测试 |
+| 人工编辑 | `POST /api/artifacts/{id}`、交付物编辑区 | 工作流测试 |
+| 单项确认 | `POST /api/artifacts/{id}/approve` | 工作流测试 |
+| 整包确认 | `POST /api/runs/{id}/approve-all` | 签收工作流测试 |
+| 交付签收 | `POST /api/runs/{id}/signoff`、`analysis_runs.signoff_*` 字段 | 签收测试、导出测试 |
+| 版本记录 | `artifact_revisions`、`GET /api/artifacts/{id}/revisions` | 工作流测试 |
+| 差异查看 | `GET /api/artifacts/{id}/diff`、结果页差异面板 | 工作流测试 |
+| Markdown 导出 | `/cases/{id}/export` | 冒烟脚本、工作流测试 |
+| PDF 导出 | `/cases/{id}/export.pdf` | 冒烟脚本、工作流测试 |
+| 一键演示闭环 | `/demo/start`、`/demo/complete` | 演示闭环测试 |
+| 运行状态页 | `/ops`、`/api/system/status` | 运行状态测试、冒烟脚本 |
+
+## 接口覆盖
+
+| 计划接口 | 当前状态 | 证据 |
+| --- | --- | --- |
+| `POST /api/cases` | 已实现 | `app/main.py` |
+| `POST /api/cases/{id}/analyze` | 已实现 | `app/main.py` |
+| `GET /api/cases/{id}/runs` | 已实现 | `app/main.py` |
+| `POST /api/artifacts/{id}/approve` | 已实现 | `app/main.py` |
+
+额外补充接口：
+
+- `GET /api/system/status`：运行状态和演示就绪度。
+- `POST /api/cases/{id}/retry`：重新生成交付方案。
+- `GET /api/artifacts/{id}/revisions`：交付物版本历史。
+- `GET /api/artifacts/{id}/diff`：交付物内容差异。
+- `POST /api/runs/{id}/approve-all`：整包确认。
+- `POST /api/runs/{id}/signoff`：签收交付包。
+- `POST /api/artifacts/{id}`：人工编辑交付物。
+
+## 数据模型覆盖
+
+| 计划表 | 当前状态 | 说明 |
+| --- | --- | --- |
+| `cases` | 已实现 | 保存变更案例、数据库类型、目标系统、SQL、业务背景、环境、负责人、审批人和计划窗口。 |
+| `analysis_runs` | 已实现 | 保存每次 AI 分析、模型状态、摘要、错误信息和签收信息。 |
+| `artifacts` | 已实现 | 保存 6 类当前交付物及确认状态。 |
+| `llm_call_logs` | 已实现 | 保存模型请求/响应审计、耗时、状态和失败原因。 |
+| `demo_fixtures` | 已实现 | 保存内置合成演示案例载荷。 |
+
+额外补充表：
+
+- `artifact_revisions`：保存交付物 AI 生成、人工编辑、人工确认等版本快照。
+
+## AI 工作流覆盖
+
+| 计划项 | 当前证据 | 验收方式 |
+| --- | --- | --- |
+| OpenAI-compatible 适配层 | `app/llm.py` | LLM 适配层测试 |
+| `LLM_BASE_URL` | `app/config.py`、`.env.example`、README、部署文档 | 文档和测试 |
+| `LLM_API_KEY` | `app/config.py`、`.env.example`、README、部署文档 | 兜底测试 |
+| `LLM_MODEL` | `app/config.py`、`.env.example`、README、部署文档 | 真实模型 mock 测试 |
+| 国内模型优先 | README 和部署文档提供通义千问兼容地址示例 | 文档审计 |
+| 无 Key 兜底 | `fixture_analysis`、`LLMClient.analyze_change` | 兜底测试 |
+| 调用失败兜底 | `LLMClient.analyze_change` | 超时兜底测试 |
+| 结构化输出 | `normalize_response`、`ARTIFACT_TITLES` | 结构化输出测试 |
+| 审计脱敏 | `sanitize_audit_payload` | 脱敏测试 |
+
+## 文档和交付资产
+
+| 资产 | 当前文件 |
+| --- | --- |
+| README | `README.md` |
+| Render 部署配置 | `render.yaml` |
+| Railway 部署配置 | `railway.json` |
+| Fly.io 部署配置 | `fly.toml` |
+| 通用容器配置 | `Dockerfile`、`.dockerignore` |
+| 一页式作品简介 | `docs/PORTFOLIO_BRIEF.md` |
+| 需求覆盖审计 | `docs/COMPLETION_AUDIT.md` |
+| 架构说明 | `docs/ARCHITECTURE.md` |
+| 架构决策记录 | `docs/DECISIONS.md` |
+| API 契约说明 | `docs/API.md` |
+| 部署说明 | `docs/DEPLOYMENT.md` |
+| 3-5 分钟演示脚本 | `docs/DEMO_SCRIPT.md` |
+| 面试答辩材料 | `docs/INTERVIEW_QA.md` |
+| 发布检查表 | `docs/RELEASE_CHECKLIST.md` |
+| 公开投递操作单 | `docs/PUBLIC_DELIVERY.md` |
+| 备用视频录制指南 | `docs/VIDEO_RECORDING_GUIDE.md` |
+| 截图刷新说明 | `docs/SCREENSHOTS.md` |
+| 最终交付验收清单 | `docs/HANDOFF_CHECKLIST.md` |
+| 样例 Markdown | `artifacts/samples/changeops-demo-delivery.md` |
+| 样例 PDF | `artifacts/samples/changeops-demo-delivery.pdf` |
+| 产品截图 | `artifacts/screenshots/home.png`、`artifacts/screenshots/demo.png`、`artifacts/screenshots/run-detail.png` |
+| 面试交付压缩包脚本 | `scripts/package_release.ps1` |
+| README 发布链接回填脚本 | `scripts/update_release_links.ps1` |
+| 公开交付总审计脚本 | `scripts/public_delivery_audit.ps1` |
+| 当前交付状态汇总脚本 | `scripts/delivery_status.ps1` |
+
+## 验收命令
+
+完整本地验收：
+
+```powershell
+.\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+该脚本会串联测试、端到端冒烟、中文界面审计、部署配置审计和交付打包检查。
+
+发布前文件和运行状态审计：
+
+```powershell
+.\scripts\release_readiness.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+该审计同时检查本地运行产物是否已清理，避免把 `.env`、数据库、日志、进程 pid 文件或缓存带入公开交付。
+
+线上发布验收：
+
+```powershell
+.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+```
+
+README 发布链接回填：
+
+```powershell
+.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+```
+
+公开交付总审计：
+
+```powershell
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo
+```
+
+该脚本不仅检查 README 是否回填链接，也会实际访问线上演示地址和备用视频地址。备用视频如果仍是私有链接、登录后可见链接或已过期分享链接，不算完成公开交付。
+
+部署配置一致性审计：
+
+```powershell
+.\scripts\deploy_config_audit.ps1
+```
+
+中文界面交付证据审计：
+
+```powershell
+.\scripts\ui_text_audit.ps1
+```
+
+样例交付包刷新：
+
+```powershell
+.\scripts\generate_demo_exports.ps1 -BaseUrl http://127.0.0.1:8000
+```
+
+发布前清理：
+
+```powershell
+.\scripts\clean_release_artifacts.ps1 -WhatIf
+.\scripts\clean_release_artifacts.ps1
+```
+
+生成面试交付压缩包：
+
+```powershell
+.\scripts\package_release.ps1
+```
+
+## 完成度边界
+
+本地仓库已经达到可面试演示和可交付试运行状态。严格意义上的完整公开交付仍需外部动作完成：
+
+1. 部署到 Render/Railway/Fly.io 等平台，生成真实在线演示地址。
+2. 录制并上传 3-5 分钟备用演示视频。
+3. 将线上地址和视频链接回填到 README 顶部。
+4. 使用 `scripts/delivery_status.ps1 -Strict` 或 `scripts/public_delivery_audit.ps1` 确认线上演示和视频链接都可访问。

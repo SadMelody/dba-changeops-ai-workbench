@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ case.title }} · DBA ChangeOps{% endblock %}
+{% block page_title %}变更案例详情{% endblock %}
+{% block content %}
+<section class="two-column">
+  <article class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>{{ case.title }}</h2>
+        <p>{{ case.db_type }} · {{ case.target_system }}</p>
+      </div>
+      <span class="chip priority">{{ case.priority }}</span>
+    </div>
+    <div class="metadata-grid">
+      <span><strong>类型</strong>{{ case.change_type }}</span>
+      <span><strong>状态</strong>{{ case.status|status_label }}</span>
+      <span><strong>环境</strong>{{ case.environment or "-" }}</span>
+      <span><strong>负责人</strong>{{ case.owner or "-" }}</span>
+      <span><strong>审批人</strong>{{ case.approver or "-" }}</span>
+      <span><strong>计划窗口</strong>{{ case.planned_window or "-" }}</span>
+      <span><strong>创建时间</strong>{{ case.created_at|dt }}</span>
+      <span><strong>更新时间</strong>{{ case.updated_at|dt }}</span>
+    </div>
+    <h3>业务背景</h3>
+    <p class="body-copy">{{ case.business_context or "-" }}</p>
+    <h3>SQL / 操作命令</h3>
+    <pre class="code-block">{{ case.source_sql or "-- 未提供 SQL" }}</pre>
+    <h3>表结构说明</h3>
+    <p class="body-copy">{{ case.schema_notes or "-" }}</p>
+    <h3>约束条件</h3>
+    <p class="body-copy">{{ case.constraints or "-" }}</p>
+    <div class="action-row">
+      <form method="post" action="/cases/{{ case.id }}/analyze" data-loading-form>
+        <button class="button primary" type="submit" data-loading-text="{{ '重新生成中...' if case.runs else '生成中...' }}">
+          {{ '重新生成交付方案' if case.runs else '生成交付方案' }}
+        </button>
+      </form>
+      <a class="button secondary" href="/cases/{{ case.id }}/export">导出 Markdown</a>
+      <a class="button secondary" href="/cases/{{ case.id }}/export.pdf">导出 PDF</a>
+    </div>
+  </article>
+  <aside class="panel">
+    <div class="panel-header">
+      <div>
+        <h2>分析历史</h2>
+        <p>每次模型调用或兜底生成都会留下审计记录</p>
+      </div>
+    </div>
+    {% if case.runs %}
+      <div class="timeline">
+        {% for run in case.runs %}
+          {% set run_delivery = delivery_summary(run) %}
+          <a class="timeline-item" href="/cases/{{ case.id }}/runs/{{ run.id }}">
+            <span class="status-dot"></span>
+            <strong>第 {{ run.id }} 次分析 · {{ run.status|status_label }}</strong>
+            <small>
+              {{ run.provider|provider_label }} / {{ run.model|provider_label }} ·
+              {{ run.completed_at|dt }} · {{ run_delivery.label }}
+            </small>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">暂无分析记录。先生成第一版交付方案。</div>
+    {% endif %}
+  </aside>
+</section>
+{% endblock %}
