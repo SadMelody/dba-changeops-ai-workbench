@@ -35,7 +35,7 @@ function Normalize-Url {
     return $url
 }
 
-function Invoke-Script {
+function Invoke-JsonScript {
     param(
         [string]$Label,
         [string]$ScriptPath,
@@ -44,11 +44,60 @@ function Invoke-Script {
 
     Write-Host ""
     Write-Host "==> $Label"
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File $ScriptPath @Arguments
+    $output = & pwsh -NoProfile -ExecutionPolicy Bypass -File $ScriptPath @Arguments 2>&1
     $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) {
-        throw "$Label failed with exit code $exitCode"
+    $text = ($output | Out-String).Trim()
+    $jsonStart = $text.IndexOf("{")
+    $payload = $null
+    if ($jsonStart -ge 0) {
+        try {
+            $payload = $text.Substring($jsonStart) | ConvertFrom-Json
+        }
+        catch {
+            $payload = $null
+        }
     }
+
+    return [pscustomobject]@{
+        label = $Label
+        exit_code = $exitCode
+        payload = $payload
+        raw = $text
+    }
+}
+
+function Test-ReadyPayload {
+    param([pscustomobject]$Result)
+
+    return $Result.exit_code -eq 0 -and $null -ne $Result.payload -and [bool]$Result.payload.ready
+}
+
+function Get-JsonScriptDetail {
+    param(
+        [pscustomobject]$Result,
+        [string]$SuccessDetail
+    )
+
+    if (Test-ReadyPayload $Result) {
+        return $SuccessDetail
+    }
+
+    if ($Result.exit_code -ne 0) {
+        return "$($Result.label) failed with exit code $($Result.exit_code)"
+    }
+
+    if ($null -eq $Result.payload) {
+        return "$($Result.label) did not return parseable JSON"
+    }
+
+    if ($Result.payload.failures) {
+        $failedNames = @($Result.payload.failures | Select-Object -ExpandProperty name)
+        if ($failedNames.Count -gt 0) {
+            return "$($Result.label) failed checks: " + ($failedNames -join ", ")
+        }
+    }
+
+    return "$($Result.label) did not report ready=true"
 }
 
 function Test-UrlReachable {
@@ -85,17 +134,6 @@ if (-not (Test-Path -LiteralPath $readinessScript)) {
     throw "Missing release readiness script: $readinessScript"
 }
 
-$verifyArgs = @("-BaseUrl", $demo)
-if ($CompleteDemo) {
-    $verifyArgs += "-CompleteDemo"
-}
-if ($AllowHttp) {
-    $verifyArgs += "-AllowHttp"
-}
-Invoke-Script "验证线上演示地址" $verifyScript $verifyArgs
-
-Invoke-Script "验证本地发布材料" $readinessScript @("-SkipRuntime")
-
 $readme = Get-Content -LiteralPath $ReadmePath -Raw
 $checks = New-Object System.Collections.Generic.List[object]
 $failures = New-Object System.Collections.Generic.List[object]
@@ -118,6 +156,18 @@ function Add-Check {
     }
 }
 
+$verifyArgs = @("-BaseUrl", $demo)
+if ($CompleteDemo) {
+    $verifyArgs += "-CompleteDemo"
+}
+if ($AllowHttp) {
+    $verifyArgs += "-AllowHttp"
+}
+$onlineVerification = Invoke-JsonScript "验证线上演示地址" $verifyScript $verifyArgs
+$releaseReadiness = Invoke-JsonScript "验证本地发布材料" $readinessScript @("-SkipRuntime")
+
+Add-Check "online:demo" (Test-ReadyPayload $onlineVerification) (Get-JsonScriptDetail $onlineVerification "online demo URL passed release verification")
+Add-Check "release:materials" (Test-ReadyPayload $releaseReadiness) (Get-JsonScriptDetail $releaseReadiness "local release materials passed readiness verification")
 Add-Check "readme:demo-url" ($readme.Contains("在线演示：$demo")) "README should include the verified demo URL"
 Add-Check "readme:video-url" ($readme.Contains($video)) "README should include the backup demo video URL"
 Add-Check "online:video-reachable" (Test-UrlReachable $video) "backup demo video URL should be reachable"
