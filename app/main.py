@@ -19,6 +19,7 @@ from app.integrations import (
     build_work_order_writeback_payload,
     dispatch_work_order_writeback,
     normalize_work_order_payload,
+    sanitize_webhook_url,
 )
 from app.models import Artifact, Case
 from app.services import (
@@ -222,7 +223,7 @@ def _send_work_order_writeback(db: Session, run, request: Request) -> dict[str, 
     if not webhook_url:
         raise ValueError("ITSM_WEBHOOK_URL 未配置，无法主动回写工单")
 
-    log = record_work_order_writeback_attempt(db, run, payload, webhook_url)
+    log = record_work_order_writeback_attempt(db, run, payload, sanitize_webhook_url(webhook_url))
     try:
         webhook = dispatch_work_order_writeback(payload, settings)
     except WorkOrderWritebackError as exc:

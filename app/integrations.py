@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
+from app.llm import sanitize_audit_payload
 from app.services import delivery_summary, format_dt, provider_label, run_signoff_summary, status_label
 
 
@@ -28,12 +30,69 @@ WORK_ORDER_FIELD_LABELS = {
 WORK_ORDER_ID_PREFIX = "外部工单："
 WORK_ORDER_URL_PREFIX = "工单链接："
 WORK_ORDER_LABELS_PREFIX = "工单标签："
+SENSITIVE_URL_QUERY_MARKERS = (
+    "api_key",
+    "apikey",
+    "access_token",
+    "auth",
+    "key",
+    "password",
+    "passwd",
+    "pwd",
+    "secret",
+    "signature",
+    "sig",
+    "token",
+)
 
 
 class WorkOrderWritebackError(RuntimeError):
     def __init__(self, message: str, response_payload: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.response_payload = response_payload or {}
+
+
+def _is_sensitive_url_query_key(key: str) -> bool:
+    normalized = key.lower().replace("-", "_")
+    return any(marker in normalized for marker in SENSITIVE_URL_QUERY_MARKERS)
+
+
+def sanitize_webhook_url(url: str) -> str:
+    url = (url or "").strip()
+    if not url:
+        return ""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return sanitize_audit_payload(url)
+
+    query = urlencode(
+        [
+            (key, "***" if _is_sensitive_url_query_key(key) else value)
+            for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        ],
+        doseq=True,
+    )
+    try:
+        username = parts.username
+        password = parts.password
+        hostname = parts.hostname
+        port = parts.port
+    except ValueError:
+        return urlunsplit((parts.scheme, sanitize_audit_payload(parts.netloc), parts.path, query, parts.fragment))
+
+    netloc = parts.netloc
+    if username or password:
+        host = hostname or ""
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+        if port:
+            host = f"{host}:{port}"
+        userinfo = username or ""
+        if password is not None:
+            userinfo = f"{userinfo}:***"
+        netloc = f"{userinfo}@{host}" if userinfo else host
+    return urlunsplit((parts.scheme, netloc, parts.path, query, parts.fragment))
 
 
 def _text(data: dict[str, Any], *keys: str, default: str = "") -> str:
@@ -292,10 +351,10 @@ def _webhook_response_payload(
 ) -> dict[str, Any]:
     return {
         "configured": True,
-        "url": webhook_url,
+        "url": sanitize_webhook_url(webhook_url),
         "status_code": response.status_code,
         "accepted": response.status_code < 400,
-        "response": body,
+        "response": sanitize_audit_payload(body),
     }
 
 
@@ -326,9 +385,9 @@ def dispatch_work_order_writeback(
             f"ITSM Webhook 回写失败：{exc}",
             {
                 "configured": True,
-                "url": webhook_url,
+                "url": sanitize_webhook_url(webhook_url),
                 "accepted": False,
-                "error": str(exc),
+                "error": sanitize_audit_payload(str(exc)),
             },
         ) from exc
 

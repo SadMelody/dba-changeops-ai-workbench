@@ -279,6 +279,8 @@ FastAPI 自动生成的交互式文档也可访问：
 - `ITSM_WEBHOOK_URL`：Webhook 地址，必填；未配置时接口返回 `422`。
 - `ITSM_WEBHOOK_TOKEN`：可选认证 Token；配置后请求头会带 `Authorization: Bearer <token>`。
 
+审计边界：实际发送会使用原始 `ITSM_WEBHOOK_URL`；API 响应和 `work_order_writeback_logs` 中保存的 URL 会遮蔽查询串中的 token/key/signature 类字段和 Basic Auth 密码，外部响应体也会按审计规则脱敏后保存。
+
 响应示例：
 
 ```json
@@ -315,7 +317,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `200`：Webhook 已返回 2xx/3xx，视为发送成功。
 - `404`：分析记录不存在。
 - `422`：未配置 `ITSM_WEBHOOK_URL`，或分析记录缺少外部工单号。
-- `502`：外部 Webhook 返回 4xx/5xx；失败 attempt 会写入 `work_order_writeback_logs`，并保留外部响应体用于排障。
+- `502`：外部 Webhook 返回 4xx/5xx；失败 attempt 会写入 `work_order_writeback_logs`，并保留脱敏后的外部响应体用于排障。
 
 ### `GET /api/integrations/work-orders/runs/{run_id}/writebacks`
 
@@ -446,7 +448,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `case_inputs`：本次分析使用的业务背景、SQL、表结构和约束。
 - `artifacts`：6 类交付物正文、确认状态、版本记录、最近内容差异和版本 API 链接。
 - `llm_logs`：模型提供方、模型名、状态、耗时、失败原因，以及已脱敏的请求和响应审计 payload。
-- `writeback_logs`：外部工单 Webhook 回写 attempt、状态、目标工单号、目标状态、响应和失败原因。
+- `writeback_logs`：外部工单 Webhook 回写 attempt、状态、目标工单号、目标状态、脱敏后的响应和失败原因。
 - `export_urls`：固定到本次运行记录的 Markdown 和 PDF 交付包下载入口。
 
 状态码：

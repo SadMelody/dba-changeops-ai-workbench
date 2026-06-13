@@ -47,6 +47,38 @@ When extending work-order integration, keep the generic boundary clear:
 standard payloads and generic Webhook transport are in scope; vendor-specific
 Jira/ServiceNow/enterprise approval semantics are a later adapter layer.
 
+## External Inputs And Delivery Boundary
+
+Treat external delivery inputs as project metadata, not hard-coded application
+behavior:
+
+- `DemoUrl`: the verified online demo URL for the deployed web service.
+- `VideoUrl`: the verified demo walkthrough video URL, only when video recording
+  is actually completed.
+- `LLM_*`: OpenAI-compatible model configuration used at runtime; the app must
+  keep working through the offline fixture path when these values are absent.
+- `ITSM_WEBHOOK_URL`: the raw Webhook target used only for dispatch; logs,
+  persisted audit payloads, API responses, docs, and tests must not expose
+  secrets from this URL or from external response bodies.
+
+Do not claim a public URL, video, model integration, or ITSM writeback is ready
+unless it has been verified in the current working state. If an item is not yet
+verified, document it as pending instead of filling in a placeholder as fact.
+
+## Completion Definition
+
+For this project, "done" means the feature is useful in the interview/demo path
+and has evidence:
+
+- routes, services, persistence, and UI remain aligned
+- regression tests or a focused script cover the behavior
+- release/deployment docs match the shipped behavior
+- generated demo artifacts are refreshed when public evidence changes
+- secrets and private URLs are never committed or shown in durable logs
+
+Video production is intentionally outside the active implementation path unless
+the user explicitly re-enables it.
+
 ## Engineering Rules
 
 - Keep changes small, reviewable, and aligned with existing patterns.
@@ -57,6 +89,9 @@ Jira/ServiceNow/enterprise approval semantics are a later adapter layer.
 - Do not add dependencies without a clear need and a project-standard precedent.
 - Do not remove offline fallback behavior; demos must work without `LLM_API_KEY`.
 - Do not commit secrets, real API keys, real DB credentials, or private ITSM URLs.
+- Sanitize user-provided prompts, Webhook URLs, authorization values, and external
+  response bodies before storing them in audit records or returning them through
+  public JSON endpoints.
 - Preserve Chinese user-facing copy unless deliberately updating product wording.
 - If a feature affects public behavior, update `README.md` and relevant files in
   `docs/` in the same change.

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from app.config import load_dotenv
 from app.database import Base, SessionLocal, engine
 from app.demo_data import ARTIFACT_TITLES, DEMO_CASES, fixture_analysis
-from app.integrations import WorkOrderWritebackError, dispatch_work_order_writeback
+from app.integrations import WorkOrderWritebackError, dispatch_work_order_writeback, sanitize_webhook_url
 from app.evaluation import SCENARIO_MARKERS, evaluate_demo_fixtures
 from app.llm import LLMClient, normalize_response, sanitize_audit_payload
 from app.main import app
@@ -193,6 +193,21 @@ def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
     assert "api_key" in sanitized["nested"]
     assert sanitized["nested"]["api_key"] == "***"
     assert sanitized["nested"]["safe"] == "保留普通审计字段"
+
+
+def test_sanitize_webhook_url_redacts_query_secrets_and_basic_auth() -> None:
+    sanitized = sanitize_webhook_url(
+        "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible&signature=abc123"
+    )
+
+    assert sanitized == (
+        "https://hook-user:***@itsm.example.test/webhook/changeops"
+        "?token=%2A%2A%2A&safe=visible&signature=%2A%2A%2A"
+    )
+    assert "hook-password" not in sanitized
+    assert "secret-token" not in sanitized
+    assert "abc123" not in sanitized
 
 
 def test_llm_client_uses_fixture_when_api_key_is_missing() -> None:
@@ -783,6 +798,49 @@ def test_dispatch_work_order_writeback_sends_configured_webhook_request() -> Non
     assert FakeWebhookClient.last_request["json"] == payload
 
 
+def test_dispatch_work_order_writeback_redacts_audit_url_and_response_body() -> None:
+    payload = {
+        "action": "work_order_delivery_writeback",
+        "source": {"external_id": "CHG-20260614-011"},
+    }
+    raw_webhook_url = (
+        "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible"
+    )
+    settings = SimpleNamespace(
+        itsm_webhook_url=raw_webhook_url,
+        itsm_webhook_token="secret-token",
+    )
+
+    def factory(timeout: float) -> FakeWebhookClient:
+        return FakeWebhookClient(
+            FakeWebhookResponse(
+                {
+                    "received": True,
+                    "token": "echoed-token",
+                    "message": "accepted password=plain-secret",
+                },
+                status_code=202,
+            )
+        )
+
+    result = dispatch_work_order_writeback(payload, settings, http_client_factory=factory)
+
+    assert FakeWebhookClient.last_request is not None
+    assert FakeWebhookClient.last_request["url"] == raw_webhook_url
+    serialized_result = json.dumps(result, ensure_ascii=False)
+    assert "hook-password" not in serialized_result
+    assert "secret-token" not in serialized_result
+    assert "echoed-token" not in serialized_result
+    assert "plain-secret" not in serialized_result
+    assert result["url"] == (
+        "https://hook-user:***@itsm.example.test/webhook/changeops"
+        "?token=%2A%2A%2A&safe=visible"
+    )
+    assert result["response"]["token"] == "***"
+    assert result["response"]["message"] == "accepted password=***"
+
+
 def test_dispatch_work_order_writeback_reports_webhook_http_failure() -> None:
     payload = {"action": "work_order_delivery_writeback"}
     settings = SimpleNamespace(
@@ -832,7 +890,7 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
         captured["settings"] = settings
         return {
             "configured": True,
-            "url": "https://itsm.example.test/webhook/changeops",
+            "url": "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible",
             "status_code": 202,
             "accepted": True,
             "response": {"received": True},
@@ -842,7 +900,9 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
     monkeypatch.setattr(
         "app.main.get_settings",
         lambda: SimpleNamespace(
-            itsm_webhook_url="https://itsm.example.test/webhook/changeops",
+            itsm_webhook_url=(
+                "https://itsm.example.test/webhook/changeops?token=secret-token&safe=visible"
+            ),
             itsm_webhook_token="secret-token",
         ),
     )
@@ -859,6 +919,12 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
     assert payload["log"]["source_external_id"] == "CHG-20260614-002"
     assert payload["log"]["target_status"] == "delivery_generated"
     assert payload["log"]["response_payload"]["status_code"] == 202
+    assert payload["log"]["webhook_url"] == (
+        "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible"
+    )
+    assert payload["log"]["response_payload"]["url"] == (
+        "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible"
+    )
     assert payload["payload"]["source"]["external_id"] == "CHG-20260614-002"
     assert payload["payload"]["exports"]["markdown"] == f"http://testserver/cases/1/runs/{run_id}/export"
     assert captured["payload"] == payload["payload"]
@@ -870,6 +936,7 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
     assert logs_payload["total"] == 1
     assert logs_payload["writebacks"][0]["id"] == payload["log"]["id"]
     assert logs_payload["writebacks"][0]["request_payload"] == payload["payload"]
+    assert "secret-token" not in json.dumps(logs_payload["writebacks"][0], ensure_ascii=False)
 
     run_detail_response = client.get(f"/api/runs/{run_id}")
     assert run_detail_response.status_code == 200
