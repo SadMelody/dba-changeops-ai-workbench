@@ -115,7 +115,7 @@ LLM_MODEL=qwen-plus
 
 手工检查：
 
-- 首页能打开，且显示中文工作台和 5 个内置 DBA 场景。
+- 首页能打开，且显示中文工作台和 8 个内置 DBA 场景。
 - `/demo` 能一键完整闭环。
 - `/ops` 显示数据库连接正常、运行状态可用。
 - `/healthz` 返回 `status: ok` 和 `database: ok`。

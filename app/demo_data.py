@@ -115,6 +115,63 @@ DEMO_CASES = [
         "schema_notes": "ACCT.ACCOUNT_BALANCE 同时被联机交易和计息批处理更新。",
         "constraints": "未经批准不得直接 kill session。需要形成故障复盘证据包。",
     },
+    {
+        "slug": "db2-hadr-takeover",
+        "old_title": "DB2 HADR controlled takeover rehearsal",
+        "title": "DB2 HADR 受控切换演练",
+        "db_type": "DB2 LUW HADR",
+        "target_system": "核心账务库",
+        "change_type": "HADR 受控切换",
+        "priority": "P1",
+        "environment": "生产",
+        "owner": "核心库 DBA",
+        "approver": "业务连续性负责人",
+        "planned_window": "2026-06-10 01:00-02:00",
+        "business_context": "为验证机房级容灾能力，需要在低峰窗口执行一次受控 HADR 主备切换演练。",
+        "source_sql": (
+            "db2pd -db COREDB -hadr\n"
+            "TAKEOVER HADR ON DATABASE COREDB BY FORCE PEER WINDOW ONLY;\n"
+        ),
+        "schema_notes": "COREDB 运行在 HADR PEER 模式，应用通过 VIP 和连接池访问主库。",
+        "constraints": "允许 5 分钟以内连接抖动。切换前必须确认日志差距、复制状态和应用重连策略。",
+    },
+    {
+        "slug": "db2-tablespace-expand",
+        "old_title": "DB2 tablespace capacity expansion",
+        "title": "DB2 表空间容量扩容",
+        "db_type": "DB2 LUW",
+        "target_system": "交易流水库",
+        "change_type": "表空间扩容",
+        "priority": "P2",
+        "environment": "生产",
+        "owner": "交易库 DBA",
+        "approver": "交易平台负责人",
+        "planned_window": "2026-06-11 22:00-23:00",
+        "business_context": "交易流水表空间使用率超过 88%，未来两周促销流量可能触发空间告警。",
+        "source_sql": "ALTER TABLESPACE TS_TXN_DATA EXTEND (ALL 102400 M);\n",
+        "schema_notes": "TS_TXN_DATA 使用 DMS 自动存储，承载 TXN.EVENT_LOG 和 TXN.PAYMENT_TRACE。",
+        "constraints": "扩容期间不允许影响联机写入。需要确认文件系统、自动存储路径和备份窗口。",
+    },
+    {
+        "slug": "db2-privilege-change",
+        "old_title": "DB2 least privilege grant cleanup",
+        "title": "DB2 报表账号最小权限调整",
+        "db_type": "DB2 LUW",
+        "target_system": "经营分析库",
+        "change_type": "权限变更",
+        "priority": "P3",
+        "environment": "生产",
+        "owner": "分析库 DBA",
+        "approver": "数据安全负责人",
+        "planned_window": "2026-06-12 20:00-21:00",
+        "business_context": "安全审计发现报表账号拥有超出需要的写权限，需要收敛为只读访问。",
+        "source_sql": (
+            "REVOKE INSERT, UPDATE, DELETE ON TABLE BI.DAILY_REVENUE FROM USER BI_REPORT;\n"
+            "GRANT SELECT ON TABLE BI.DAILY_REVENUE TO USER BI_REPORT;\n"
+        ),
+        "schema_notes": "BI_REPORT 被 12 个报表任务和 3 个临时分析脚本使用。",
+        "constraints": "变更后必须验证核心报表可读，且不能保留多余写权限。需要数据安全复核。",
+    },
 ]
 
 
@@ -163,6 +220,12 @@ def seed_demo_data(db) -> None:
 
 def _scenario_key(case: Case) -> str:
     text = f"{case.title} {case.change_type} {case.source_sql}".lower()
+    if "hadr" in text or "takeover" in text or "受控切换" in text:
+        return "hadr"
+    if "tablespace" in text or "表空间" in text or "extend" in text:
+        return "tablespace"
+    if "grant" in text or "revoke" in text or "权限" in text:
+        return "privilege"
     if "lock" in text or "锁等待" in text or "故障" in text:
         return "lock_incident"
     if "reorg" in text or "runstats" in text or "表重组" in text:
@@ -178,6 +241,146 @@ def _scenario_key(case: Case) -> str:
 
 def _scenario_artifacts(case: Case, risk_level: str) -> dict[str, str]:
     scenario = _scenario_key(case)
+    if scenario == "hadr":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 复制状态：切换前必须确认 HADR_STATE=PEER，日志差距和重放延迟均在阈值内。\n"
+                "- 连接影响：应用 VIP、连接池和重连策略需要提前验证，避免切换后长时间连旧主库。\n"
+                "- 数据一致性：禁止在非 PEER 或日志差距异常时执行强制切换，除非进入灾难恢复流程。\n"
+                "- 监控窗口：切换前后持续观察主备角色、日志传输、交易错误率和连接数。\n"
+                "- 回切边界：演练必须明确是否回切、回切窗口和业务验收标准。"
+            ),
+            "runbook": (
+                "1. 宣布进入 HADR 受控切换演练，冻结数据库结构和批处理变更。\n"
+                "2. 采集 db2pd -hadr、日志差距、VIP 状态、应用连接池和交易成功率基线。\n"
+                "3. 确认主备均处于 PEER 状态，且业务负责人接受 5 分钟以内连接抖动。\n"
+                "4. 执行已评审 TAKEOVER HADR 命令，并记录角色切换时间点。\n"
+                "5. 验证新主库可写、旧主库进入备库角色、VIP 或连接入口已切到新主库。\n"
+                "6. 观察 15 分钟交易成功率、连接错误、日志传输和告警。\n"
+                "7. 汇总演练证据，确认是否按计划回切或保持新主库。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：新主库不可写、应用无法重连、日志复制异常，"
+                "或交易错误率超过演练阈值。\n\n"
+                "- 立即停止后续回切或批处理恢复动作。\n"
+                "- 根据当前 HADR 角色确认是否执行反向 TAKEOVER 或恢复原 VIP 指向。\n"
+                "- 与应用负责人确认连接池重置、缓存刷新和交易重试状态。\n"
+                "- 保存 db2pd -hadr、应用错误率、VIP 切换和角色状态证据。\n"
+                "- 若进入灾难恢复模式，按业务连续性预案升级，不再按普通演练处理。"
+            ),
+            "precheck_sql": (
+                "-- HADR 状态基线\n"
+                "db2pd -db COREDB -hadr\n\n"
+                "-- 数据库可写和连接验证\n"
+                "VALUES CURRENT SERVER;\n"
+                "SELECT COUNT(*) FROM SYSIBMADM.APPLICATIONS;\n\n"
+                "-- 活跃事务和长事务观察\n"
+                "SELECT * FROM SYSIBMADM.MON_CURRENT_UOW FETCH FIRST 30 ROWS ONLY;"
+            ),
+            "acceptance_checklist": (
+                "- [ ] 切换前 HADR_STATE 为 PEER，日志差距在阈值内。\n"
+                "- [ ] 新主库可读写，旧主库角色正确。\n"
+                "- [ ] 应用连接入口已指向新主库，连接池恢复正常。\n"
+                "- [ ] 交易成功率、错误率和延迟回到演练阈值内。\n"
+                "- [ ] db2pd -hadr、VIP 状态和应用验证证据已归档。\n"
+                "- [ ] 回切决策和后续观察责任人已确认。"
+            ),
+        }
+    if scenario == "tablespace":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 容量风险：扩容前确认表空间、自动存储路径和文件系统剩余空间满足增长量。\n"
+                "- 写入影响：交易流水库写入持续发生，需确认 ALTER TABLESPACE 不阻塞核心写入路径。\n"
+                "- 备份影响：扩容后备份窗口和存储占用可能变化，需要提前通知备份负责人。\n"
+                "- 告警联动：监控阈值、容量预测和自动扩展策略需同步更新。\n"
+                "- 回退限制：表空间物理扩容通常不能简单缩回，错误扩容需以容量治理方式处理。"
+            ),
+            "runbook": (
+                "1. 宣布表空间扩容开始，冻结同库大批量装载和清理任务。\n"
+                "2. 采集 TBSP_UTILIZATION、自动存储路径、文件系统余量和备份窗口基线。\n"
+                "3. 确认扩容量、目标表空间和审批记录一致。\n"
+                "4. 执行 ALTER TABLESPACE EXTEND 语句。\n"
+                "5. 扩容后立即复查表空间可用页、文件系统使用率和应用写入错误。\n"
+                "6. 更新容量监控阈值和两周增长预测。\n"
+                "7. 通知交易平台和备份负责人扩容完成。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：扩容目标错误、文件系统空间异常下降，"
+                "或扩容后写入链路出现持续错误。\n\n"
+                "- 立即停止后续容量变更动作，保留 ALTER 执行记录。\n"
+                "- 确认是否只是监控误报、自动存储路径异常或目标表空间选错。\n"
+                "- 如目标错误，禁止继续写入依赖新空间的批量任务，并提交容量治理变更。\n"
+                "- 如应用写入异常，优先恢复连接和表空间可用性，再处理空间回收。\n"
+                "- 将扩容前后 TBSP_UTILIZATION 和文件系统证据归档。"
+            ),
+            "precheck_sql": (
+                "-- 表空间使用率\n"
+                "SELECT TBSP_NAME, TBSP_TYPE, TBSP_USED_PAGES, TBSP_FREE_PAGES, TBSP_PAGE_SIZE\n"
+                "FROM SYSIBMADM.TBSP_UTILIZATION\n"
+                "WHERE TBSP_NAME='TS_TXN_DATA';\n\n"
+                "-- 表空间容器\n"
+                "SELECT TBSP_NAME, CONTAINER_NAME, TOTAL_PAGES, USABLE_PAGES\n"
+                "FROM SYSIBMADM.CONTAINER_UTILIZATION\n"
+                "WHERE TBSP_NAME='TS_TXN_DATA';\n\n"
+                "-- 目标业务表规模\n"
+                "SELECT TABSCHEMA, TABNAME, CARD, NPAGES FROM SYSCAT.TABLES WHERE TABSCHEMA='TXN';"
+            ),
+            "acceptance_checklist": (
+                "- [ ] TS_TXN_DATA 可用空间增加到审批目标。\n"
+                "- [ ] 自动存储路径和文件系统空间仍在安全阈值内。\n"
+                "- [ ] 联机写入无新增错误，交易流水持续入库。\n"
+                "- [ ] 容量监控阈值和增长预测已更新。\n"
+                "- [ ] 备份负责人确认扩容后备份窗口可接受。\n"
+                "- [ ] 扩容 SQL、表空间截图和监控截图已归档。"
+            ),
+        }
+    if scenario == "privilege":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 最小权限：必须确认 REVOKE 只移除写权限，不影响报表 SELECT 能力。\n"
+                "- 依赖识别：报表任务、临时脚本和数据抽取账号需要提前核对实际使用权限。\n"
+                "- 审计要求：权限调整要保留执行人、授权前后快照和数据安全审批。\n"
+                "- 回退边界：如报表中断，只允许按审批恢复必要权限，避免恢复过宽授权。\n"
+                "- 账号治理：变更后需要确认没有其他角色继续授予等价写权限。"
+            ),
+            "runbook": (
+                "1. 宣布进入权限收敛窗口，确认数据安全审批编号。\n"
+                "2. 采集 BI_REPORT 在目标表和角色上的授权快照。\n"
+                "3. 与报表负责人确认 12 个任务和 3 个临时脚本不需要写权限。\n"
+                "4. 执行 REVOKE INSERT/UPDATE/DELETE，并保留 SELECT 授权。\n"
+                "5. 执行授权复查 SQL，确认写权限已移除且 SELECT 仍存在。\n"
+                "6. 触发核心报表只读验证，观察任务错误和权限拒绝日志。\n"
+                "7. 将授权前后快照和业务验证结论归档。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：核心报表因权限调整失败，或存在经审批确认的必要写入任务。\n\n"
+                "- 暂停进一步权限收敛动作，不恢复未审批的宽权限。\n"
+                "- 只对被证明需要的对象和操作恢复最小授权。\n"
+                "- 重新执行报表验证和授权快照，确认没有额外写权限。\n"
+                "- 通知数据安全负责人更新例外清单和到期时间。\n"
+                "- 记录失败任务、恢复授权语句和审批依据。"
+            ),
+            "precheck_sql": (
+                "-- 表级授权快照\n"
+                "SELECT GRANTEE, GRANTEETYPE, CONTROLAUTH, SELECTAUTH, INSERTAUTH, UPDATEAUTH, DELETEAUTH\n"
+                "FROM SYSCAT.TABAUTH\n"
+                "WHERE TABSCHEMA='BI' AND TABNAME='DAILY_REVENUE' AND GRANTEE='BI_REPORT';\n\n"
+                "-- 角色授权检查\n"
+                "SELECT * FROM SYSCAT.ROLEAUTH WHERE GRANTEE='BI_REPORT';\n\n"
+                "-- 权限变更后应再次运行同样查询确认写权限为 N。"
+            ),
+            "acceptance_checklist": (
+                "- [ ] BI_REPORT 的 INSERT/UPDATE/DELETE 权限已移除。\n"
+                "- [ ] BI_REPORT 对 BI.DAILY_REVENUE 的 SELECT 权限仍可用。\n"
+                "- [ ] 核心报表任务验证通过，无权限拒绝错误。\n"
+                "- [ ] 角色授权没有绕过表级权限收敛。\n"
+                "- [ ] 授权前后快照和数据安全审批已归档。\n"
+                "- [ ] 如有例外权限，已记录到期时间和负责人。"
+            ),
+        }
     if scenario == "index":
         return {
             "risk_assessment": (

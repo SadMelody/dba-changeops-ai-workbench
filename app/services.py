@@ -9,7 +9,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
-from app.demo_data import ARTIFACT_TITLES
+from app.demo_data import ARTIFACT_TITLES, DEMO_CASES
 from app.llm import LLMClient
 from app.models import AnalysisRun, Artifact, ArtifactRevision, Case, LLMCallLog, utc_now
 
@@ -347,7 +347,8 @@ def operational_status(cases: list[Case], settings: BaseModel, database_ok: bool
     latest_run = summary["latest_run"]
     public_summary = dict(summary)
     public_summary["latest_run"] = latest_run.id if latest_run else None
-    has_seed_cases = len(cases) >= 5
+    expected_seed_cases = len(DEMO_CASES)
+    has_seed_cases = len(cases) >= expected_seed_cases
     has_ready_case = summary["ready_cases"] > 0
     has_signed_run = summary["signed_runs"] > 0
     llm_configured = bool(getattr(settings, "llm_api_key", ""))
@@ -394,7 +395,7 @@ def operational_status(cases: list[Case], settings: BaseModel, database_ok: bool
             {
                 "level": "warning",
                 "title": "恢复合成演示案例",
-                "detail": "确认应用启动流程已执行数据初始化，或重新部署服务以写入 5 个内置 DBA 场景。",
+                "detail": f"确认应用启动流程已执行数据初始化，或重新部署服务以写入 {expected_seed_cases} 个内置 DBA 场景。",
                 "href": "/",
                 "cta": "查看案例库",
             }

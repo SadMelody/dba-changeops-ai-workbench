@@ -255,6 +255,9 @@ def test_fixture_analysis_uses_db2_scenario_specific_templates() -> None:
         "db2-data-fix": ["备份表", "影响行数", "BAK_CUSTOMER_FLAG_20260602"],
         "db2-reorg": ["SNAPUTIL_PROGRESS", "临时表空间", "06:00"],
         "db2-lock-incident": ["应急指挥", "MON_CURRENT_UOW", "未经批准没有执行 kill session"],
+        "db2-hadr-takeover": ["HADR_STATE=PEER", "TAKEOVER HADR", "db2pd -db COREDB -hadr"],
+        "db2-tablespace-expand": ["TS_TXN_DATA", "CONTAINER_UTILIZATION", "文件系统空间"],
+        "db2-privilege-change": ["SYSCAT.TABAUTH", "BI_REPORT", "INSERT/UPDATE/DELETE 权限已移除"],
     }
 
     for fixture in DEMO_CASES:
@@ -836,11 +839,14 @@ def test_home_page_renders_seeded_demo_cases() -> None:
         response = client.get("/")
     assert response.status_code == 200
     assert "DBA ChangeOps" in response.text
-    assert "包含 5 个内置 DBA 场景，也可加入自定义变更案例" in response.text
+    assert f"包含 {len(DEMO_CASES)} 个内置 DBA 场景，也可加入自定义变更案例" in response.text
     assert "DB2 客户订单慢查询索引变更" in response.text
+    assert "DB2 HADR 受控切换演练" in response.text
+    assert "DB2 表空间容量扩容" in response.text
+    assert "DB2 报表账号最小权限调整" in response.text
     assert "AI 变更交付控制台" in response.text
     assert "交付就绪度" in response.text
-    assert "0/5 个案例已有方案" in response.text
+    assert f"0/{len(DEMO_CASES)} 个案例已有方案" in response.text
     assert "暂无交付物" in response.text
     assert "暂无签收记录" in response.text
 
@@ -854,7 +860,7 @@ def test_demo_mode_starts_recommended_case() -> None:
         assert "一键生成交付包" in response.text
         assert "一键完整闭环" in response.text
         assert "DB2 客户订单慢查询索引变更" in response.text
-        assert "0/5 个案例已有方案" in response.text
+        assert f"0/{len(DEMO_CASES)} 个案例已有方案" in response.text
 
         start_response = client.post("/demo/start", follow_redirects=False)
         assert start_response.status_code == 303
@@ -870,7 +876,7 @@ def test_demo_mode_starts_recommended_case() -> None:
 
         demo_after = client.get("/demo")
         assert demo_after.status_code == 200
-        assert "1/5 个案例已有方案" in demo_after.text
+        assert f"1/{len(DEMO_CASES)} 个案例已有方案" in demo_after.text
         assert "0/6 已确认" in demo_after.text
         assert "查看最新交付包" in demo_after.text
 
@@ -898,7 +904,7 @@ def test_demo_complete_creates_signed_delivery_package() -> None:
 
         demo_after = client.get("/demo")
         assert demo_after.status_code == 200
-        assert "1/5 个案例已有方案" in demo_after.text
+        assert f"1/{len(DEMO_CASES)} 个案例已有方案" in demo_after.text
         assert "6/6 已确认" in demo_after.text
         assert "1/1 个交付包已签收" in demo_after.text
         assert "已签收" in demo_after.text
@@ -930,7 +936,7 @@ def test_operations_status_page_and_api() -> None:
         assert payload["service"] == "dba-changeops-ai-workbench"
         assert payload["database_ok"] is True
         assert payload["llm_mode_label"] == "离线兜底"
-        assert payload["summary"]["total_cases"] == 5
+        assert payload["summary"]["total_cases"] == len(DEMO_CASES)
         assert payload["summary"]["latest_run"] is None
         assert payload["summary"]["signed_runs"] == 0
         assert payload["summary"]["signed_label"] == "暂无签收记录"
