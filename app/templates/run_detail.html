@@ -174,8 +174,8 @@
         <button class="button primary" type="submit" data-loading-text="重新生成中...">重新生成交付方案</button>
       </form>
       <a class="button secondary" href="/cases/{{ case.id }}">返回案例</a>
-      <a class="button secondary" href="/cases/{{ case.id }}/export">导出 Markdown</a>
-      <a class="button secondary" href="/cases/{{ case.id }}/export.pdf">导出 PDF</a>
+      <a class="button secondary" href="/cases/{{ case.id }}/runs/{{ run.id }}/export">导出 Markdown</a>
+      <a class="button secondary" href="/cases/{{ case.id }}/runs/{{ run.id }}/export.pdf">导出 PDF</a>
     </div>
   </aside>
 </section>

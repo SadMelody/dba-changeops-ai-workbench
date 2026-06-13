@@ -202,7 +202,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `case_inputs`：本次分析使用的业务背景、SQL、表结构和约束。
 - `artifacts`：6 类交付物正文、确认状态、版本记录、最近内容差异和版本 API 链接。
 - `llm_logs`：模型提供方、模型名、状态、耗时、失败原因，以及已脱敏的请求和响应审计 payload。
-- `export_urls`：Markdown 和 PDF 交付包下载入口。
+- `export_urls`：固定到本次运行记录的 Markdown 和 PDF 交付包下载入口。
 
 状态码：
 
@@ -316,7 +316,7 @@ FastAPI 自动生成的交互式文档也可访问：
 
 ### `GET /cases/{case_id}/export`
 
-导出 Markdown 交付包。
+导出该案例最新一次运行的 Markdown 交付包。适合页面按钮或演示场景快速下载当前最新材料。
 
 响应头：
 
@@ -327,13 +327,33 @@ Content-Disposition: attachment; filename="changeops-case-{case_id}.md"
 
 ### `GET /cases/{case_id}/export.pdf`
 
-导出 PDF 交付包。
+导出该案例最新一次运行的 PDF 交付包。
 
 响应头：
 
 ```text
 Content-Type: application/pdf
 Content-Disposition: attachment; filename="changeops-case-{case_id}.pdf"
+```
+
+### `GET /cases/{case_id}/runs/{run_id}/export`
+
+导出指定分析运行的 Markdown 交付包。这个入口不会随着后续重新生成而变化，适合审计归档和外部系统固定引用。
+
+状态码：
+
+- `200`：导出成功。
+- `404`：案例或分析记录不存在，或该分析记录不属于该案例。
+
+### `GET /cases/{case_id}/runs/{run_id}/export.pdf`
+
+导出指定分析运行的 PDF 交付包。语义与 Markdown 固定导出一致。
+
+响应头：
+
+```text
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="changeops-case-{case_id}-run-{run_id}.pdf"
 ```
 
 ## PowerShell 调用示例

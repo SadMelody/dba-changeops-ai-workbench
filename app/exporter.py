@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import textwrap
 
-from app.models import Artifact, Case
+from app.models import AnalysisRun, Artifact, Case
 from app.services import (
     artifact_content_diff,
     delivery_summary,
@@ -21,9 +21,9 @@ def _latest_run(case: Case):
     return case.runs[0] if case.runs else None
 
 
-def _document_id(case: Case) -> str:
-    latest_run = _latest_run(case)
-    suffix = f"RUN-{latest_run.id:04d}" if latest_run else "DRAFT"
+def _document_id(case: Case, run: AnalysisRun | None = None) -> str:
+    selected_run = run or _latest_run(case)
+    suffix = f"RUN-{selected_run.id:04d}" if selected_run else "DRAFT"
     return f"CHANGEOPS-{case.id:04d}-{suffix}"
 
 
@@ -64,17 +64,17 @@ def _artifact_diff_summary(artifact: Artifact) -> str:
     )
 
 
-def export_markdown(case: Case) -> str:
-    latest_run = _latest_run(case)
-    delivery = delivery_summary(latest_run)
-    signoff = run_signoff_summary(latest_run)
-    artifact_titles = _artifact_titles(latest_run)
+def export_markdown(case: Case, run: AnalysisRun | None = None) -> str:
+    selected_run = run or _latest_run(case)
+    delivery = delivery_summary(selected_run)
+    signoff = run_signoff_summary(selected_run)
+    artifact_titles = _artifact_titles(selected_run)
     lines = [
         "# DBA ChangeOps AI 变更交付包",
         "",
         "## 文档封面",
         "",
-        f"- 文档编号：{_document_id(case)}",
+        f"- 文档编号：{_document_id(case, selected_run)}",
         f"- 案例名称：{case.title}",
         "- 文档用途：变更评审、执行前沟通、交付存档",
         "- 数据来源：合成 DBA 运维案例，不包含真实生产数据",
@@ -82,10 +82,10 @@ def export_markdown(case: Case) -> str:
         f"- 负责人：{case.owner or '-'}",
         f"- 审批人：{case.approver or '-'}",
         f"- 计划窗口：{case.planned_window or '-'}",
-        f"- 生成时间：{format_dt(latest_run.completed_at) if latest_run else '-'}",
+        f"- 生成时间：{format_dt(selected_run.completed_at) if selected_run else '-'}",
         f"- 交付结论：{delivery['state_label']}",
         f"- 签收状态：{signoff['label']}",
-        f"- 审计摘要：{_llm_audit_summary(latest_run)}",
+        f"- 审计摘要：{_llm_audit_summary(selected_run)}",
         "",
         "## 目录",
         "",
@@ -108,7 +108,7 @@ def export_markdown(case: Case) -> str:
         f"- 审批人：{case.approver or '-'}",
         f"- 计划窗口：{case.planned_window or '-'}",
         f"- 状态：{status_label(case.status)}",
-        f"- 文档编号：{_document_id(case)}",
+        f"- 文档编号：{_document_id(case, selected_run)}",
         "",
         "## 原始需求",
         "",
@@ -128,7 +128,7 @@ def export_markdown(case: Case) -> str:
         "",
     ]
 
-    if latest_run:
+    if selected_run:
         lines += [
             "## 交付完成度",
             "",
@@ -146,9 +146,9 @@ def export_markdown(case: Case) -> str:
                 lines += [f"- 签收说明：{signoff['signoff_note']}"]
         if delivery["pending_titles"]:
             lines += [f"- 待确认交付物：{'、'.join(delivery['pending_titles'])}"]
-        lines += ["", "## AI 摘要", "", latest_run.summary, ""]
+        lines += ["", "## AI 摘要", "", selected_run.summary, ""]
         lines += ["## 交付清单", ""]
-        for artifact in latest_run.artifacts:
+        for artifact in selected_run.artifacts:
             lines += [
                 (
                     f"- {artifact.title}：{status_label(artifact.status)}，"
@@ -157,7 +157,7 @@ def export_markdown(case: Case) -> str:
                 )
             ]
         lines += [""]
-        for artifact in latest_run.artifacts:
+        for artifact in selected_run.artifacts:
             lines += [
                 f"## {artifact.title}",
                 "",
@@ -175,8 +175,8 @@ def export_markdown(case: Case) -> str:
                 "",
             ]
         lines += ["## LLM 调用审计", ""]
-        if latest_run.llm_logs:
-            for log in latest_run.llm_logs:
+        if selected_run.llm_logs:
+            for log in selected_run.llm_logs:
                 lines += [
                     (
                         f"- {format_dt(log.created_at)}：{provider_label(log.provider)} / "
@@ -202,16 +202,16 @@ def _append_pdf_block(rows: list[str], text: str) -> None:
         rows.extend(textwrap.wrap(raw_line, width=PDF_LINE_WIDTH) or [""])
 
 
-def _pdf_document_rows(case: Case) -> list[str]:
-    latest_run = _latest_run(case)
-    delivery = delivery_summary(latest_run)
-    signoff = run_signoff_summary(latest_run)
+def _pdf_document_rows(case: Case, run: AnalysisRun | None = None) -> list[str]:
+    selected_run = run or _latest_run(case)
+    delivery = delivery_summary(selected_run)
+    signoff = run_signoff_summary(selected_run)
     rows: list[str] = [
         "DBA ChangeOps AI 变更交付包",
         "=" * 38,
         "文档封面",
         "-" * 24,
-        f"文档编号：{_document_id(case)}",
+        f"文档编号：{_document_id(case, selected_run)}",
         f"案例：{case.title}",
         "文档用途：变更评审、执行前沟通、交付存档",
         "数据来源：合成 DBA 运维案例，不包含真实生产数据",
@@ -224,10 +224,10 @@ def _pdf_document_rows(case: Case) -> list[str]:
         f"审批人：{case.approver or '-'}",
         f"计划窗口：{case.planned_window or '-'}",
         f"案例状态：{status_label(case.status)}",
-        f"生成时间：{format_dt(latest_run.completed_at) if latest_run else '-'}",
+        f"生成时间：{format_dt(selected_run.completed_at) if selected_run else '-'}",
         f"交付结论：{delivery['state_label']}",
         f"签收状态：{signoff['label']}",
-        f"审计摘要：{_llm_audit_summary(latest_run)}",
+        f"审计摘要：{_llm_audit_summary(selected_run)}",
         "",
         "目录",
         "-" * 24,
@@ -249,7 +249,7 @@ def _pdf_document_rows(case: Case) -> list[str]:
     rows += ["", "约束条件："]
     _append_pdf_block(rows, case.constraints or "-")
 
-    if not latest_run:
+    if not selected_run:
         rows += ["", "二、交付包状态", "-" * 24, "暂无分析记录。"]
         return rows
 
@@ -257,9 +257,9 @@ def _pdf_document_rows(case: Case) -> list[str]:
         "",
         "二、AI 交付概览",
         "-" * 24,
-        f"分析记录：第 {latest_run.id} 次",
-        f"生成来源：{provider_label(latest_run.provider)} / {provider_label(latest_run.model)}",
-        f"分析状态：{status_label(latest_run.status)}",
+        f"分析记录：第 {selected_run.id} 次",
+        f"生成来源：{provider_label(selected_run.provider)} / {provider_label(selected_run.model)}",
+        f"分析状态：{status_label(selected_run.status)}",
         f"交付完成度：{delivery['label']}",
         f"交付状态：{delivery['state_label']}",
         f"签收状态：{signoff['label']}",
@@ -272,21 +272,21 @@ def _pdf_document_rows(case: Case) -> list[str]:
         ]
         if signoff["signoff_note"]:
             _append_pdf_block(rows, f"签收说明：{signoff['signoff_note']}")
-    if latest_run.error_message:
-        rows.append(f"失败原因：{latest_run.error_message}")
+    if selected_run.error_message:
+        rows.append(f"失败原因：{selected_run.error_message}")
     if delivery["pending_titles"]:
         _append_pdf_block(rows, f"待确认交付物：{'、'.join(delivery['pending_titles'])}")
-    _append_pdf_block(rows, f"摘要：{latest_run.summary}")
+    _append_pdf_block(rows, f"摘要：{selected_run.summary}")
 
     rows += ["", "三、交付物状态总览", "-" * 24]
-    for artifact in latest_run.artifacts:
+    for artifact in selected_run.artifacts:
         rows.append(
             f"- {artifact.title}：{status_label(artifact.status)}，"
             f"更新 {format_dt(artifact.updated_at)}，确认 {format_dt(artifact.approved_at)}"
         )
 
     rows += ["", "四、交付物正文", "-" * 24]
-    for index, artifact in enumerate(latest_run.artifacts, start=1):
+    for index, artifact in enumerate(selected_run.artifacts, start=1):
         rows += [
             "",
             f"4.{index} {artifact.title}",
@@ -301,8 +301,8 @@ def _pdf_document_rows(case: Case) -> list[str]:
         rows.append(_artifact_diff_summary(artifact))
 
     rows += ["", "五、LLM 调用审计", "-" * 24]
-    if latest_run.llm_logs:
-        for log in latest_run.llm_logs:
+    if selected_run.llm_logs:
+        for log in selected_run.llm_logs:
             rows.append(
                 f"- {format_dt(log.created_at)}：{provider_label(log.provider)} / "
                 f"{provider_label(log.model)} / {status_label(log.status)} / {log.latency_ms} ms"
@@ -322,8 +322,8 @@ def _pdf_document_rows(case: Case) -> list[str]:
     return rows
 
 
-def export_pdf_bytes(case: Case) -> bytes:
-    rows = _pdf_document_rows(case)
+def export_pdf_bytes(case: Case, run: AnalysisRun | None = None) -> bytes:
+    rows = _pdf_document_rows(case, run)
     pages = [rows[i : i + PDF_ROWS_PER_PAGE] for i in range(0, len(rows), PDF_ROWS_PER_PAGE)] or [[]]
     objects: dict[int, str] = {}
     catalog_id = 1

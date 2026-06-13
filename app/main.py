@@ -179,8 +179,8 @@ def _run_detail_payload(run) -> dict[str, Any]:
         "artifacts": [_artifact_payload(artifact) for artifact in run.artifacts],
         "llm_logs": [_llm_log_payload(log) for log in run.llm_logs],
         "export_urls": {
-            "markdown": f"/cases/{run.case_id}/export",
-            "pdf": f"/cases/{run.case_id}/export.pdf",
+            "markdown": f"/cases/{run.case_id}/runs/{run.id}/export",
+            "pdf": f"/cases/{run.case_id}/runs/{run.id}/export.pdf",
         },
     }
 
@@ -685,6 +685,20 @@ def export_case_markdown(case_id: int, db: Session = Depends(get_db)) -> Respons
     )
 
 
+@app.get("/cases/{case_id}/runs/{run_id}/export")
+def export_run_markdown(case_id: int, run_id: int, db: Session = Depends(get_db)) -> Response:
+    case = get_case(db, case_id)
+    run = get_run(db, run_id)
+    if not case or not run or run.case_id != case.id:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    filename = f"changeops-case-{case.id}-run-{run.id}.md"
+    return Response(
+        export_markdown(case, run),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/cases/{case_id}/export.pdf")
 def export_case_pdf(case_id: int, db: Session = Depends(get_db)) -> Response:
     case = get_case(db, case_id)
@@ -693,6 +707,20 @@ def export_case_pdf(case_id: int, db: Session = Depends(get_db)) -> Response:
     filename = f"changeops-case-{case.id}.pdf"
     return Response(
         export_pdf_bytes(case),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/cases/{case_id}/runs/{run_id}/export.pdf")
+def export_run_pdf(case_id: int, run_id: int, db: Session = Depends(get_db)) -> Response:
+    case = get_case(db, case_id)
+    run = get_run(db, run_id)
+    if not case or not run or run.case_id != case.id:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    filename = f"changeops-case-{case.id}-run-{run.id}.pdf"
+    return Response(
+        export_pdf_bytes(case, run),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

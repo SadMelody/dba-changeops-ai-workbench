@@ -370,8 +370,8 @@ def test_create_analyze_approve_and_export_workflow() -> None:
     assert run_detail_payload["delivery"]["label"] == "1/6 已确认"
     assert run_detail_payload["signoff"]["label"] == "待签收"
     assert run_detail_payload["export_urls"] == {
-        "markdown": f"/cases/{case_id}/export",
-        "pdf": f"/cases/{case_id}/export.pdf",
+        "markdown": f"/cases/{case_id}/runs/{run_id}/export",
+        "pdf": f"/cases/{case_id}/runs/{run_id}/export.pdf",
     }
     assert len(run_detail_payload["artifacts"]) == len(ARTIFACT_TITLES)
     detail_artifact = next(
@@ -405,6 +405,8 @@ def test_create_analyze_approve_and_export_workflow() -> None:
     assert "人工确认" in run_page.text
     assert edited_content in run_page.text
     assert "重新生成交付方案" in run_page.text
+    assert f"/cases/{case_id}/runs/{run_id}/export" in run_page.text
+    assert f"/cases/{case_id}/runs/{run_id}/export.pdf" in run_page.text
     assert "交付完成度" in run_page.text
     assert "1/6 已确认" in run_page.text
     assert "还有 5 项待确认" in run_page.text
@@ -491,6 +493,27 @@ def test_create_analyze_approve_and_export_workflow() -> None:
         retry_payload["run_id"],
         run_id,
     ]
+
+    old_run_markdown_response = client.get(f"/cases/{case_id}/runs/{run_id}/export")
+    assert old_run_markdown_response.status_code == 200
+    assert f"文档编号：CHANGEOPS-{case_id:04d}-RUN-{run_id:04d}" in old_run_markdown_response.text
+    assert edited_content in old_run_markdown_response.text
+
+    latest_case_markdown_response = client.get(f"/cases/{case_id}/export")
+    assert latest_case_markdown_response.status_code == 200
+    assert (
+        f"文档编号：CHANGEOPS-{case_id:04d}-RUN-{retry_payload['run_id']:04d}"
+        in latest_case_markdown_response.text
+    )
+
+    old_run_pdf_response = client.get(f"/cases/{case_id}/runs/{run_id}/export.pdf")
+    assert old_run_pdf_response.status_code == 200
+    assert old_run_pdf_response.content.startswith(b"%PDF-1.4")
+    assert pdf_contains(old_run_pdf_response.content, f"CHANGEOPS-{case_id:04d}-RUN-{run_id:04d}")
+
+    mismatched_run_export_response = client.get(f"/cases/{case_id + 1}/runs/{run_id}/export")
+    assert mismatched_run_export_response.status_code == 404
+    assert mismatched_run_export_response.json()["detail"] == "分析记录不存在"
 
     missing_run_response = client.get("/api/runs/999999")
     assert missing_run_response.status_code == 404
