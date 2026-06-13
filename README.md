@@ -196,6 +196,8 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\package_release.ps1
 ```
 
+打包脚本也会排除 `.omx/` 和 `outputs/` 等本地工具或临时输出目录，避免把 Codex/演示生成物混入公开交付包。
+
 发布前可以运行交付就绪审计：
 
 ```powershell

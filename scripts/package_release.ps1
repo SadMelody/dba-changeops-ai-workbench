@@ -14,10 +14,12 @@ function Test-ExcludedPath {
     $segments = $path.Split("/")
 
     if ($segments -contains ".git") { return $true }
+    if ($segments -contains ".omx") { return $true }
     if ($segments -contains ".venv") { return $true }
     if ($segments -contains "__pycache__") { return $true }
     if ($segments -contains ".pytest_cache") { return $true }
     if ($path.StartsWith("pytest-cache-files-")) { return $true }
+    if ($path.StartsWith("outputs/")) { return $true }
     if ($path.StartsWith("artifacts/tmp/")) { return $true }
     if ($path.StartsWith("artifacts/releases/")) { return $true }
 
@@ -103,6 +105,24 @@ $manifestFiles = $files | ForEach-Object {
     }
 }
 
+$blockedPackagePrefixes = @(".git/", ".omx/", ".venv/", "outputs/", "artifacts/tmp/", "artifacts/releases/")
+$blockedPackageFiles = @(
+    $manifestFiles |
+        Where-Object {
+            $filePath = $_.path
+            foreach ($prefix in $blockedPackagePrefixes) {
+                if ($filePath.StartsWith($prefix)) {
+                    return $true
+                }
+            }
+            return $false
+        } |
+        Select-Object -ExpandProperty path
+)
+if ($blockedPackageFiles.Count -gt 0) {
+    throw "Package manifest contains excluded local artifacts: $($blockedPackageFiles -join ', ')"
+}
+
 $manifest = [pscustomobject]@{
     name = $Name
     version = $Version
@@ -113,10 +133,12 @@ $manifest = [pscustomobject]@{
     excluded = @(
         ".env",
         ".git/",
+        ".omx/",
         ".venv/",
         "__pycache__/",
         ".pytest_cache/",
         "pytest-cache-files-*/",
+        "outputs/",
         "artifacts/tmp/",
         "artifacts/releases/",
         "*.db",
