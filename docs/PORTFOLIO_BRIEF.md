@@ -61,6 +61,7 @@ uvicorn app.main:app --reload
 
 ## 可验证证据
 
+- 在线演示：`https://dba-changeops-ai-workbench.onrender.com`
 - 样例 Markdown：`artifacts/samples/changeops-demo-delivery.md`
 - 样例 PDF：`artifacts/samples/changeops-demo-delivery.pdf`
 - 架构说明：`docs/ARCHITECTURE.md`
@@ -120,5 +121,4 @@ uvicorn app.main:app --reload
 
 ## 仍需外部补齐
 
-- 线上部署 URL：代码已经包含 Dockerfile、Render 配置和部署文档，实际地址需要部署平台账号生成。
-- 备用演示视频：建议线上地址确认后录制 3-5 分钟版本，降低面试现场网络风险。
+- 备用演示视频：当前暂缓；后续建议录制 3-5 分钟版本，降低面试现场网络风险。

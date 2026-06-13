@@ -13,10 +13,10 @@
 - 导出材料：Markdown、PDF、样例交付包和截图。
 - 验收门禁：测试、冒烟、中文 UI 审计、部署配置审计、发布就绪审计。
 
-仍需要外部补齐：
+当前外部输入状态：
 
-- 一个真实 HTTPS 在线演示地址。
-- 一个无需登录即可访问的 3-5 分钟备用演示视频地址。
+- 真实 HTTPS 在线演示地址：已完成，`https://dba-changeops-ai-workbench.onrender.com`。
+- 3-5 分钟备用演示视频地址：暂缓；跳过视频时可以继续投递代码、README、样例交付包和线上 Demo，但严格公开交付审计不会返回 `ready: true`。
 
 ## 最短上线顺序
 
@@ -39,11 +39,12 @@ https://your-app.example.com/healthz
 .\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
 ```
 
-7. 按 `docs/VIDEO_RECORDING_GUIDE.md` 录制 3-5 分钟视频，并上传到无需登录即可访问的位置。
-8. 回填 README 顶部链接：
+7. 如需要严格公开投递，按 `docs/VIDEO_RECORDING_GUIDE.md` 录制 3-5 分钟视频，并上传到无需登录即可访问的位置。
+8. 回填 README 顶部链接；视频暂缓时只传 `DemoUrl`：
 
 ```powershell
 .\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com
 ```
 
 9. 最终公开交付审计：
@@ -53,6 +54,11 @@ https://your-app.example.com/healthz
 ```
 
 只有上面命令返回 `ready: true`，才算严格意义上的公开投递完成。
+视频暂缓时，先运行非严格状态汇总确认 Demo 和本地材料：
+
+```powershell
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
+```
 
 ## 平台环境变量
 

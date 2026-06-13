@@ -19,8 +19,8 @@ DBA ChangeOps AI 工作台需要满足两个演示场景：
 4. 先不配置 `LLM_API_KEY`，让线上演示稳定使用离线兜底模式。
 5. 部署后打开 `https://.../healthz`，确认 `status` 和 `database` 都是 `ok`。
 6. 打开 `https://.../demo`，点击“一键完整闭环”，确认可生成、确认、签收并导出。
-7. 录制 3-5 分钟演示视频，并上传到无需登录即可访问的地址。
-8. 回填 README 顶部在线演示和视频链接。
+7. 录制 3-5 分钟演示视频，并上传到无需登录即可访问的地址；如果视频暂缓，可以先跳过。
+8. 回填 README 顶部在线演示链接；视频暂缓时只回填 `DemoUrl`。
 9. 运行公开交付审计，确认线上地址、视频地址和 README 都已就绪。
 
 回填和审计命令：
@@ -31,6 +31,11 @@ DBA ChangeOps AI 工作台需要满足两个演示场景：
 ```
 
 这条路径的原则是先证明产品闭环可在线打开，再决定是否接入真实模型。真实模型可以作为增强项，不应阻塞公开投递。
+当前 Render DemoUrl 为 `https://dba-changeops-ai-workbench.onrender.com`。视频暂缓时，使用非严格状态汇总确认 Demo 和本地材料即可：
+
+```powershell
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
+```
 
 ## 本地预检
 

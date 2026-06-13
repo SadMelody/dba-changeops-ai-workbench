@@ -68,22 +68,22 @@ LLM_MODEL=qwen-plus
 
 ## 上线后验收
 
-把下面的 `https://your-app.example.com` 替换成真实线上地址。
+当前线上地址是 `https://dba-changeops-ai-workbench.onrender.com`。如果重新部署到其他平台，再把下面的地址替换成新地址。
 
 ```powershell
-.\scripts\smoke_check.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\smoke_check.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 面向公开投递时，建议再运行线上发布验收包装脚本：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 验收通过后，自动回填 README 顶部发布区：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com
 ```
 
 最后运行公开交付审计，确认线上地址、视频链接、README 回填和本地发布材料都已就绪：
@@ -108,6 +108,7 @@ LLM_MODEL=qwen-plus
 
 ```powershell
 .\scripts\delivery_status.ps1 -BaseUrl http://127.0.0.1:8000
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
 
 手工检查：

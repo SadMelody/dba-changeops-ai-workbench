@@ -4,14 +4,17 @@
 
 DBA ChangeOps AI 工作台已经具备本地完整演示闭环：创建案例、生成交付包、人工编辑、版本记录、确认、签收、审计、Markdown/PDF 导出和运行状态核验都可以在中文界面中完成。
 
-还需要外部补齐的公开交付项：
+公开交付项状态：
 
-- 线上部署地址：代码已提供 `Dockerfile`、`render.yaml`、`Procfile` 和部署说明，实际 URL 需要绑定部署平台后填写。
-- 备用演示视频：建议线上部署完成后录制 3-5 分钟版本，上传到无需登录即可访问的地址，避免面试现场网络或平台异常影响展示。
+- 线上部署地址：已完成，`https://dba-changeops-ai-workbench.onrender.com`。
+- 备用演示视频：暂缓；建议后续录制 3-5 分钟版本，上传到无需登录即可访问的地址，避免面试现场网络或平台异常影响展示。
 
 ## 面试演示入口
 
 - 本地首页：`http://127.0.0.1:8000/`
+- 线上首页：`https://dba-changeops-ai-workbench.onrender.com/`
+- 线上交付演示台：`https://dba-changeops-ai-workbench.onrender.com/demo`
+- 线上运行状态页：`https://dba-changeops-ai-workbench.onrender.com/ops`
 - 交付演示台：`http://127.0.0.1:8000/demo`
 - 运行状态页：`http://127.0.0.1:8000/ops`
 - 健康检查：`http://127.0.0.1:8000/healthz`
@@ -139,4 +142,4 @@ py -B -m pytest -q -p no:cacheprovider
 
 ## 交付口径
 
-本地代码和演示闭环已经达到可面试展示状态。面向公开投递时，建议把线上部署地址和可访问的备用演示视频补齐后，替换 README 顶部的在线演示占位说明，并运行公开交付审计。
+本地代码、线上 Demo 和演示闭环已经达到可面试展示状态。面向严格公开投递时，还需要补齐可访问的备用演示视频，并运行带 `VideoUrl` 的公开交付审计。
