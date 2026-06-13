@@ -462,6 +462,75 @@ def test_create_analyze_approve_and_export_workflow() -> None:
     ]
 
 
+def test_create_case_api_rejects_invalid_json_and_field_boundaries() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    malformed_response = client.post(
+        "/api/cases",
+        content="{",
+        headers={"content-type": "application/json"},
+    )
+    assert malformed_response.status_code == 400
+    assert malformed_response.json()["detail"] == "请求体必须是合法 JSON"
+
+    invalid_response = client.post(
+        "/api/cases",
+        json={
+            "title": "  ",
+            "priority": "P9",
+            "target_system": "x" * 121,
+        },
+    )
+
+    assert invalid_response.status_code == 422
+    detail = invalid_response.json()["detail"]
+    assert "标题不能为空" in detail
+    assert "优先级只能是 P1、P2、P3 或 P4" in detail
+    assert "目标系统不能超过 120 个字符" in detail
+
+
+def test_review_inputs_reject_oversized_artifact_and_signoff_fields() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/api/cases",
+        json={
+            "title": "DB2 input boundary",
+            "db_type": "DB2 LUW",
+            "target_system": "Risk",
+            "change_type": "Index change",
+            "priority": "P2",
+        },
+    )
+    case_id = create_response.json()["id"]
+    analyze_response = client.post(f"/api/cases/{case_id}/analyze")
+    run_id = analyze_response.json()["run_id"]
+
+    db = SessionLocal()
+    artifact = db.query(Artifact).filter(Artifact.run_id == run_id).first()
+    assert artifact is not None
+    artifact_id = artifact.id
+    db.close()
+
+    edit_response = client.post(
+        f"/api/artifacts/{artifact_id}",
+        json={"content": "x" * 20001},
+    )
+    assert edit_response.status_code == 422
+    assert edit_response.json()["detail"] == "交付物内容不能超过 20000 个字符"
+
+    approve_response = client.post(f"/api/runs/{run_id}/approve-all")
+    assert approve_response.status_code == 200
+    signoff_response = client.post(
+        f"/api/runs/{run_id}/signoff",
+        json={"signed_by": "x" * 81, "note": "字段边界测试"},
+    )
+    assert signoff_response.status_code == 422
+    assert signoff_response.json()["detail"] == "签收人不能超过 80 个字符"
+
+
 def test_run_can_approve_all_artifacts_as_delivery_package() -> None:
     reset_db()
     with TestClient(app) as client:

@@ -40,6 +40,111 @@ EVENT_LABELS = {
     "approved": "人工确认",
 }
 
+CASE_STRING_LIMITS = {
+    "title": 180,
+    "db_type": 40,
+    "target_system": 120,
+    "change_type": 80,
+    "priority": 24,
+    "environment": 40,
+    "owner": 80,
+    "approver": 80,
+    "planned_window": 120,
+}
+
+CASE_TEXT_LIMITS = {
+    "business_context": 4000,
+    "source_sql": 12000,
+    "schema_notes": 4000,
+    "constraints": 4000,
+}
+
+CASE_FIELD_LABELS = {
+    "title": "标题",
+    "db_type": "数据库类型",
+    "target_system": "目标系统",
+    "change_type": "变更类型",
+    "priority": "优先级",
+    "environment": "环境",
+    "owner": "负责人",
+    "approver": "审批人",
+    "planned_window": "计划窗口",
+    "business_context": "业务背景",
+    "source_sql": "SQL 或操作命令",
+    "schema_notes": "表结构说明",
+    "constraints": "约束条件",
+}
+
+ALLOWED_PRIORITIES = {"P1", "P2", "P3", "P4"}
+ARTIFACT_CONTENT_LIMIT = 20000
+SIGNOFF_NAME_LIMIT = 80
+SIGNOFF_NOTE_LIMIT = 2000
+
+
+def _field_text(data: dict[str, Any], field: str, default: str = "") -> str:
+    value = data.get(field, default)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f"{CASE_FIELD_LABELS.get(field, field)}必须是文本")
+    return value.strip()
+
+
+def normalize_case_data(data: dict[str, Any]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    errors: list[str] = []
+
+    for field, limit in CASE_STRING_LIMITS.items():
+        try:
+            normalized[field] = _field_text(data, field, "DB2" if field == "db_type" else "")
+        except ValueError as exc:
+            errors.append(str(exc))
+            normalized[field] = ""
+            continue
+        if len(normalized[field]) > limit:
+            errors.append(f"{CASE_FIELD_LABELS[field]}不能超过 {limit} 个字符")
+
+    for field, limit in CASE_TEXT_LIMITS.items():
+        try:
+            normalized[field] = _field_text(data, field)
+        except ValueError as exc:
+            errors.append(str(exc))
+            normalized[field] = ""
+            continue
+        if len(normalized[field]) > limit:
+            errors.append(f"{CASE_FIELD_LABELS[field]}不能超过 {limit} 个字符")
+
+    if not normalized["title"]:
+        errors.append("标题不能为空")
+    normalized["db_type"] = normalized["db_type"] or "DB2"
+    normalized["change_type"] = normalized["change_type"] or "数据库变更"
+    normalized["priority"] = (normalized["priority"] or "P2").upper()
+    if normalized["priority"] not in ALLOWED_PRIORITIES:
+        errors.append("优先级只能是 P1、P2、P3 或 P4")
+
+    if errors:
+        raise ValueError("；".join(errors))
+    return normalized
+
+
+def normalize_artifact_content(content: str) -> str:
+    normalized = content.strip()
+    if not normalized:
+        raise ValueError("交付物内容不能为空")
+    if len(normalized) > ARTIFACT_CONTENT_LIMIT:
+        raise ValueError(f"交付物内容不能超过 {ARTIFACT_CONTENT_LIMIT} 个字符")
+    return normalized
+
+
+def normalize_signoff_input(signed_by: str, note: str) -> tuple[str, str]:
+    signed_by = signed_by.strip()
+    note = note.strip()
+    if len(signed_by) > SIGNOFF_NAME_LIMIT:
+        raise ValueError(f"签收人不能超过 {SIGNOFF_NAME_LIMIT} 个字符")
+    if len(note) > SIGNOFF_NOTE_LIMIT:
+        raise ValueError(f"签收说明不能超过 {SIGNOFF_NOTE_LIMIT} 个字符")
+    return signed_by, note
+
 
 def list_cases(db: Session) -> list[Case]:
     return (
@@ -51,20 +156,21 @@ def list_cases(db: Session) -> list[Case]:
 
 
 def create_case(db: Session, data: dict[str, Any]) -> Case:
+    normalized = normalize_case_data(data)
     case = Case(
-        title=data["title"].strip(),
-        db_type=data.get("db_type", "DB2").strip() or "DB2",
-        target_system=data.get("target_system", "").strip(),
-        change_type=data.get("change_type", "").strip() or "数据库变更",
-        priority=data.get("priority", "P2"),
-        environment=data.get("environment", "").strip(),
-        owner=data.get("owner", "").strip(),
-        approver=data.get("approver", "").strip(),
-        planned_window=data.get("planned_window", "").strip(),
-        business_context=data.get("business_context", "").strip(),
-        source_sql=data.get("source_sql", "").strip(),
-        schema_notes=data.get("schema_notes", "").strip(),
-        constraints=data.get("constraints", "").strip(),
+        title=normalized["title"],
+        db_type=normalized["db_type"],
+        target_system=normalized["target_system"],
+        change_type=normalized["change_type"],
+        priority=normalized["priority"],
+        environment=normalized["environment"],
+        owner=normalized["owner"],
+        approver=normalized["approver"],
+        planned_window=normalized["planned_window"],
+        business_context=normalized["business_context"],
+        source_sql=normalized["source_sql"],
+        schema_notes=normalized["schema_notes"],
+        constraints=normalized["constraints"],
         status="draft",
     )
     db.add(case)
@@ -402,10 +508,11 @@ def signoff_run(db: Session, run_id: int, signed_by: str = "", note: str = "") -
     delivery = delivery_summary(run)
     if not delivery["is_complete"]:
         raise ValueError("交付物全部确认后才能签收")
+    signed_by, note = normalize_signoff_input(signed_by, note)
     now = utc_now()
     run.signoff_status = "signed"
-    run.signed_by = signed_by.strip() or run.case.approver or run.case.owner or "变更审批人"
-    run.signoff_note = note.strip()
+    run.signed_by = signed_by or run.case.approver or run.case.owner or "变更审批人"
+    run.signoff_note = note
     run.signed_at = now
     run.case.updated_at = now
     db.commit()
@@ -417,7 +524,7 @@ def update_artifact_content(db: Session, artifact_id: int, content: str) -> Arti
     artifact = db.query(Artifact).filter(Artifact.id == artifact_id).first()
     if not artifact:
         return None
-    next_content = content.strip()
+    next_content = normalize_artifact_content(content)
     should_record = (
         next_content != artifact.content or artifact.status != "draft" or artifact.approved_at is not None
     )

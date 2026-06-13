@@ -86,7 +86,18 @@ FastAPI 自动生成的交互式文档也可访问：
 状态码：
 
 - `200`：创建成功。
-- `422`：标题为空或请求体不完整。
+- `400`：请求体不是合法 JSON。
+- `422`：请求体不是 JSON 对象，或字段不满足边界要求。
+
+字段边界：
+
+- `title` 必填，最多 180 个字符。
+- `priority` 只能是 `P1`、`P2`、`P3` 或 `P4`。
+- `db_type`、`environment` 最多 40 个字符。
+- `target_system`、`planned_window` 最多 120 个字符。
+- `change_type`、`owner`、`approver` 最多 80 个字符。
+- `business_context`、`schema_notes`、`constraints` 最多 4000 个字符。
+- `source_sql` 最多 12000 个字符。
 
 ### `POST /api/cases/{case_id}/analyze`
 
@@ -159,7 +170,7 @@ FastAPI 自动生成的交互式文档也可访问：
 
 - `200`：保存成功。
 - `404`：交付物不存在。
-- `422`：内容为空。
+- `422`：内容为空，或超过 20000 个字符。
 
 ### `POST /api/artifacts/{artifact_id}/approve`
 
@@ -202,6 +213,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `200`：签收成功。
 - `404`：分析记录不存在。
 - `409`：交付物尚未全部确认，不能签收。
+- `422`：签收人超过 80 个字符，或签收说明超过 2000 个字符。
 
 ## 版本与差异
 

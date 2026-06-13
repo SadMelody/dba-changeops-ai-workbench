@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -27,6 +28,7 @@ from app.services import (
     get_case,
     get_run,
     list_cases,
+    normalize_artifact_content,
     operational_status,
     provider_label,
     run_signoff_summary,
@@ -67,6 +69,22 @@ def _recommended_demo_case(cases: list[Case]) -> Case | None:
         if case.title == "DB2 客户订单慢查询索引变更":
             return case
     return cases[0] if cases else None
+
+
+async def _json_object(request: Request) -> dict[str, Any]:
+    try:
+        data = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="请求体必须是合法 JSON") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=422, detail="请求体必须是 JSON 对象")
+    return data
+
+
+def _validation_error(exc: ValueError) -> HTTPException:
+    detail = str(exc)
+    status_code = 409 if "全部确认" in detail else 422
+    return HTTPException(status_code=status_code, detail=detail)
 
 
 @app.get("/healthz")
@@ -206,33 +224,37 @@ def create_case_form(
     constraints: str = Form(""),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
-    case = create_case(
-        db,
-        {
-            "title": title,
-            "db_type": db_type,
-            "target_system": target_system,
-            "change_type": change_type,
-            "priority": priority,
-            "environment": environment,
-            "owner": owner,
-            "approver": approver,
-            "planned_window": planned_window,
-            "business_context": business_context,
-            "source_sql": source_sql,
-            "schema_notes": schema_notes,
-            "constraints": constraints,
-        },
-    )
+    try:
+        case = create_case(
+            db,
+            {
+                "title": title,
+                "db_type": db_type,
+                "target_system": target_system,
+                "change_type": change_type,
+                "priority": priority,
+                "environment": environment,
+                "owner": owner,
+                "approver": approver,
+                "planned_window": planned_window,
+                "business_context": business_context,
+                "source_sql": source_sql,
+                "schema_notes": schema_notes,
+                "constraints": constraints,
+            },
+        )
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
     return RedirectResponse(f"/cases/{case.id}", status_code=303)
 
 
 @app.post("/api/cases")
 async def create_case_api(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
-    data = await request.json()
-    if not data.get("title"):
-        raise HTTPException(status_code=422, detail="标题不能为空")
-    case = create_case(db, data)
+    data = await _json_object(request)
+    try:
+        case = create_case(db, data)
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
     return JSONResponse({"id": case.id, "title": case.title, "status": case.status})
 
 
@@ -400,7 +422,7 @@ def approve_run_artifacts_api(run_id: int, db: Session = Depends(get_db)) -> JSO
 
 @app.post("/api/runs/{run_id}/signoff")
 async def signoff_run_api(run_id: int, request: Request, db: Session = Depends(get_db)) -> JSONResponse:
-    data = await request.json()
+    data = await _json_object(request)
     try:
         run = signoff_run(
             db,
@@ -409,7 +431,7 @@ async def signoff_run_api(run_id: int, request: Request, db: Session = Depends(g
             note=str(data.get("note") or data.get("signoff_note") or ""),
         )
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _validation_error(exc) from exc
     if not run:
         raise HTTPException(status_code=404, detail="分析记录不存在")
     return JSONResponse(
@@ -441,10 +463,11 @@ def approve_artifact_api(artifact_id: int, db: Session = Depends(get_db)) -> JSO
 async def update_artifact_api(
     artifact_id: int, request: Request, db: Session = Depends(get_db)
 ) -> JSONResponse:
-    data = await request.json()
-    content = str(data.get("content") or "").strip()
-    if not content:
-        raise HTTPException(status_code=422, detail="交付物内容不能为空")
+    data = await _json_object(request)
+    try:
+        content = normalize_artifact_content(str(data.get("content") or ""))
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
     artifact = update_artifact_content(db, artifact_id, content)
     if not artifact:
         raise HTTPException(status_code=404, detail="交付物不存在")
@@ -475,7 +498,7 @@ def signoff_run_form(
     try:
         run = signoff_run(db, run_id, signed_by=signed_by, note=signoff_note)
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _validation_error(exc) from exc
     if not run:
         raise HTTPException(status_code=404, detail="分析记录不存在")
     return RedirectResponse(f"/cases/{run.case_id}/runs/{run.id}", status_code=303)
@@ -493,9 +516,11 @@ def approve_artifact_form(artifact_id: int, db: Session = Depends(get_db)) -> Re
 def update_artifact_form(
     artifact_id: int, content: str = Form(...), db: Session = Depends(get_db)
 ) -> RedirectResponse:
-    if not content.strip():
-        raise HTTPException(status_code=422, detail="交付物内容不能为空")
-    artifact = update_artifact_content(db, artifact_id, content)
+    try:
+        content = normalize_artifact_content(content)
+        artifact = update_artifact_content(db, artifact_id, content)
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
     if not artifact:
         raise HTTPException(status_code=404, detail="交付物不存在")
     return RedirectResponse(f"/cases/{artifact.case_id}/runs/{artifact.run_id}", status_code=303)
