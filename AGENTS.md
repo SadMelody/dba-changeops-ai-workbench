@@ -19,6 +19,23 @@ materials:
 
 Treat this as a productized workflow tool, not a generic chatbot demo.
 
+## Agent Operating Contract
+
+Use this file as the project boundary before making changes in this repository:
+
+- If a request is ambiguous, choose the path that strengthens the DBA ChangeOps
+  demo product instead of widening the product surface.
+- Keep implementation, documentation, demo artifacts, and release scripts aligned;
+  do not leave the project in a state where the demo says one thing and the code
+  does another.
+- Prefer completing one demonstrable workflow end to end over adding partial
+  capabilities in several directions.
+- Preserve the interview/demo narrative: an evaluator should be able to understand
+  what the product does, run it, verify it, and see evidence without private
+  infrastructure.
+- Treat unverified public claims as defects. A URL, video, integration, or model
+  path is only "ready" after the relevant check has passed.
+
 ## Current Product Boundary
 
 Keep the first-release scope focused on a stable interview/demo product:
@@ -46,6 +63,19 @@ Do not expand the project into these areas unless the user explicitly asks:
 When extending work-order integration, keep the generic boundary clear:
 standard payloads and generic Webhook transport are in scope; vendor-specific
 Jira/ServiceNow/enterprise approval semantics are a later adapter layer.
+
+## Current Improvement Priorities
+
+When continuing project completion, prioritize work in this order unless the user
+explicitly changes direction:
+
+1. Keep the deployed demo verifiable and reproducible.
+2. Protect audit/security boundaries, especially secrets in LLM and Webhook paths.
+3. Improve the DBA workflow depth where it helps the interview story.
+4. Keep release evidence current: docs, sample exports, screenshots, checks, and
+   public delivery status.
+5. Defer polish that does not improve evaluator understanding or delivery
+   confidence.
 
 ## External Inputs And Delivery Boundary
 
