@@ -258,6 +258,9 @@ def test_fixture_analysis_uses_db2_scenario_specific_templates() -> None:
         "db2-hadr-takeover": ["HADR_STATE=PEER", "TAKEOVER HADR", "db2pd -db COREDB -hadr"],
         "db2-tablespace-expand": ["TS_TXN_DATA", "CONTAINER_UTILIZATION", "文件系统空间"],
         "db2-privilege-change": ["SYSCAT.TABAUTH", "BI_REPORT", "INSERT/UPDATE/DELETE 权限已移除"],
+        "db2-backup-restore": ["RESTORE DATABASE", "ROLLFORWARD", "COREDB_DR"],
+        "db2-sql-replay": ["db2batch", "replay_before.out", "访问计划"],
+        "db2-partition-maintenance": ["SYSCAT.DATAPARTITIONS", "DETACH PARTITION", "TXN_EVENT_2025Q4_ARCHIVE"],
     }
 
     for fixture in DEMO_CASES:
@@ -844,6 +847,9 @@ def test_home_page_renders_seeded_demo_cases() -> None:
     assert "DB2 HADR 受控切换演练" in response.text
     assert "DB2 表空间容量扩容" in response.text
     assert "DB2 报表账号最小权限调整" in response.text
+    assert "DB2 备份恢复演练" in response.text
+    assert "DB2 SQL 回放验证" in response.text
+    assert "DB2 历史分区归档维护" in response.text
     assert "AI 变更交付控制台" in response.text
     assert "交付就绪度" in response.text
     assert f"0/{len(DEMO_CASES)} 个案例已有方案" in response.text

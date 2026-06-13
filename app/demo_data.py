@@ -172,6 +172,68 @@ DEMO_CASES = [
         "schema_notes": "BI_REPORT 被 12 个报表任务和 3 个临时分析脚本使用。",
         "constraints": "变更后必须验证核心报表可读，且不能保留多余写权限。需要数据安全复核。",
     },
+    {
+        "slug": "db2-backup-restore",
+        "old_title": "DB2 backup restore rehearsal",
+        "title": "DB2 备份恢复演练",
+        "db_type": "DB2 LUW",
+        "target_system": "核心账务库",
+        "change_type": "备份恢复演练",
+        "priority": "P1",
+        "environment": "预生产",
+        "owner": "核心库 DBA",
+        "approver": "灾备负责人",
+        "planned_window": "2026-06-13 00:30-03:30",
+        "business_context": "季度灾备演练需要验证最近一次在线备份可恢复，并确认 RPO/RTO 证据。",
+        "source_sql": (
+            "BACKUP DATABASE COREDB ONLINE TO /backup/coredb INCLUDE LOGS;\n"
+            "RESTORE DATABASE COREDB FROM /backup/coredb TAKEN AT 20260613003000 INTO COREDB_DR REDIRECT;\n"
+            "ROLLFORWARD DATABASE COREDB_DR TO END OF LOGS AND COMPLETE;\n"
+        ),
+        "schema_notes": "COREDB 使用归档日志，恢复目标为隔离预生产实例 COREDB_DR。",
+        "constraints": "不得覆盖生产实例。必须保留备份镜像、日志链、恢复耗时和一致性校验证据。",
+    },
+    {
+        "slug": "db2-sql-replay",
+        "old_title": "DB2 SQL replay validation",
+        "title": "DB2 SQL 回放验证",
+        "db_type": "DB2 LUW",
+        "target_system": "客户查询服务库",
+        "change_type": "SQL 回放验证",
+        "priority": "P2",
+        "environment": "预生产",
+        "owner": "性能优化 DBA",
+        "approver": "查询服务负责人",
+        "planned_window": "2026-06-14 21:00-23:00",
+        "business_context": "索引和统计信息调整前，需要用脱敏生产 SQL 样本回放验证访问计划和响应时间。",
+        "source_sql": (
+            "db2batch -d CUSTDB -f replay_workload.sql -r replay_before.out\n"
+            "RUNSTATS ON TABLE CUST.CUSTOMER_QUERY WITH DISTRIBUTION AND DETAILED INDEXES ALL;\n"
+            "db2batch -d CUSTDB -f replay_workload.sql -r replay_after.out\n"
+        ),
+        "schema_notes": "replay_workload.sql 包含 200 条脱敏高频查询，覆盖客户查询、分页和筛选场景。",
+        "constraints": "回放环境必须隔离生产写入。需要比较执行时间、访问计划、锁等待和错误码。",
+    },
+    {
+        "slug": "db2-partition-maintenance",
+        "old_title": "DB2 partition archive maintenance",
+        "title": "DB2 历史分区归档维护",
+        "db_type": "DB2 LUW",
+        "target_system": "交易历史库",
+        "change_type": "分区维护",
+        "priority": "P2",
+        "environment": "生产",
+        "owner": "交易历史库 DBA",
+        "approver": "数据归档负责人",
+        "planned_window": "2026-06-15 01:00-03:00",
+        "business_context": "历史交易表需要按季度归档旧分区，降低主表扫描成本并释放热存储容量。",
+        "source_sql": (
+            "ALTER TABLE HIST.TXN_EVENT DETACH PARTITION P2025Q4 INTO HIST.TXN_EVENT_2025Q4_ARCHIVE;\n"
+            "RUNSTATS ON TABLE HIST.TXN_EVENT WITH DISTRIBUTION AND DETAILED INDEXES ALL;\n"
+        ),
+        "schema_notes": "HIST.TXN_EVENT 按季度范围分区，P2025Q4 已过业务在线查询保留期。",
+        "constraints": "归档前必须确认分区边界、外键依赖、报表保留策略和归档表备份。",
+    },
 ]
 
 
@@ -220,6 +282,17 @@ def seed_demo_data(db) -> None:
 
 def _scenario_key(case: Case) -> str:
     text = f"{case.title} {case.change_type} {case.source_sql}".lower()
+    if (
+        "backup database" in text
+        or "restore database" in text
+        or "rollforward" in text
+        or "备份恢复" in text
+    ):
+        return "backup_restore"
+    if "db2batch" in text or "replay" in text or "回放" in text:
+        return "sql_replay"
+    if "detach partition" in text or "attach partition" in text or "分区" in text:
+        return "partition"
     if "hadr" in text or "takeover" in text or "受控切换" in text:
         return "hadr"
     if "tablespace" in text or "表空间" in text or "extend" in text:
@@ -241,6 +314,149 @@ def _scenario_key(case: Case) -> str:
 
 def _scenario_artifacts(case: Case, risk_level: str) -> dict[str, str]:
     scenario = _scenario_key(case)
+    if scenario == "backup_restore":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 恢复目标：RESTORE DATABASE 只能落到隔离实例 COREDB_DR，禁止覆盖生产库。\n"
+                "- 日志链完整性：必须确认在线备份镜像包含日志，归档日志可连续 rollforward。\n"
+                "- RTO/RPO：演练需要记录备份时间点、恢复完成时间和可恢复到的日志位置。\n"
+                "- 一致性验证：恢复后执行关键表计数、约束检查和应用只读验证。\n"
+                "- 证据保留：备份镜像、恢复命令、rollforward 输出和校验结果必须归档。"
+            ),
+            "runbook": (
+                "1. 宣布进入备份恢复演练，确认恢复目标实例 COREDB_DR 已隔离生产流量。\n"
+                "2. 采集最近备份镜像、归档日志目录、数据库配置和磁盘余量基线。\n"
+                "3. 执行 RESTORE DATABASE ... REDIRECT 到 COREDB_DR，并记录开始时间。\n"
+                "4. 完成容器重定向和表空间路径确认后继续恢复。\n"
+                "5. 执行 ROLLFORWARD DATABASE COREDB_DR TO END OF LOGS AND COMPLETE。\n"
+                "6. 运行关键表计数、应用只读查询和一致性检查。\n"
+                "7. 汇总 RTO/RPO、恢复命令、日志链和验收截图。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：恢复目标错误、日志链不连续、恢复耗时超过演练窗口，"
+                "或一致性校验失败。\n\n"
+                "- 立即停止恢复流程，确认没有连接到生产实例或覆盖生产路径。\n"
+                "- 保留 RESTORE 和 ROLLFORWARD 输出，标记失败时间点。\n"
+                "- 如目标实例已部分恢复，隔离 COREDB_DR，禁止接入应用验证。\n"
+                "- 重新选择上一份可用备份镜像或补齐归档日志后再启动新演练。\n"
+                "- 更新灾备风险记录和下次演练前置检查项。"
+            ),
+            "precheck_sql": (
+                "-- 备份历史和日志链\n"
+                "LIST HISTORY BACKUP ALL FOR COREDB;\n"
+                "GET DB CFG FOR COREDB;\n\n"
+                "-- 恢复后关键对象校验\n"
+                "CONNECT TO COREDB_DR;\n"
+                "SELECT COUNT(*) FROM ACCT.LEDGER_BALANCE;\n"
+                "SELECT COUNT(*) FROM SYSIBMADM.ADMINTABINFO WHERE TABSCHEMA NOT LIKE 'SYS%';\n\n"
+                "-- 恢复完成状态\n"
+                "ROLLFORWARD DATABASE COREDB_DR QUERY STATUS;"
+            ),
+            "acceptance_checklist": (
+                "- [ ] RESTORE DATABASE 目标确认为 COREDB_DR，未覆盖生产库。\n"
+                "- [ ] ROLLFORWARD 已 COMPLETE，日志链无缺口。\n"
+                "- [ ] 关键表计数和只读查询验证通过。\n"
+                "- [ ] RTO/RPO 数据已记录并满足演练目标。\n"
+                "- [ ] 备份镜像、归档日志和恢复输出已归档。\n"
+                "- [ ] 演练结论和待改进项已同步灾备负责人。"
+            ),
+        }
+    if scenario == "sql_replay":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 样本可信度：replay_workload.sql 必须来自脱敏生产 SQL，覆盖高频和慢查询路径。\n"
+                "- 环境隔离：SQL 回放只能在预生产执行，避免误连生产造成额外负载。\n"
+                "- 计划漂移：RUNSTATS 或索引调整后需比较 EXPLAIN、执行时间和返回码。\n"
+                "- 数据差异：预生产数据量和分布不足会影响结论，需要标明偏差。\n"
+                "- 结论边界：回放通过只能证明样本范围内无明显退化，不能替代上线监控。"
+            ),
+            "runbook": (
+                "1. 冻结回放样本和预生产数据快照，确认 replay_workload.sql 已脱敏。\n"
+                "2. 执行 db2batch 基线回放，生成 replay_before.out。\n"
+                "3. 采集关键 SQL 的 EXPLAIN、响应时间、锁等待和错误码。\n"
+                "4. 执行待验证的 RUNSTATS、索引或参数调整。\n"
+                "5. 再次执行 db2batch 回放，生成 replay_after.out。\n"
+                "6. 对比 before/after 的耗时、失败 SQL、访问计划和资源指标。\n"
+                "7. 输出是否允许进入生产变更的结论和观察项。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：回放后 P95 响应时间退化、访问计划异常，"
+                "或出现新增 SQL 错误码。\n\n"
+                "- 暂停将该调整推进到生产变更。\n"
+                "- 恢复预生产统计信息、索引或参数到基线状态。\n"
+                "- 重新运行 db2batch 确认性能回到 before 水平。\n"
+                "- 标记退化 SQL，补充 EXPLAIN 和对象统计信息证据。\n"
+                "- 将结论写入变更评审，要求重新设计优化方案。"
+            ),
+            "precheck_sql": (
+                "-- 回放前对象统计\n"
+                "SELECT TABSCHEMA, TABNAME, CARD, STATS_TIME\n"
+                "FROM SYSCAT.TABLES\n"
+                "WHERE TABSCHEMA='CUST' AND TABNAME='CUSTOMER_QUERY';\n\n"
+                "-- 锁等待和活动应用基线\n"
+                "SELECT * FROM SYSIBMADM.LOCKWAITS FETCH FIRST 20 ROWS ONLY;\n"
+                "SELECT APPLICATION_NAME, COUNT(*) FROM SYSIBMADM.APPLICATIONS GROUP BY APPLICATION_NAME;\n\n"
+                "-- 回放命令\n"
+                "db2batch -d CUSTDB -f replay_workload.sql -r replay_before.out"
+            ),
+            "acceptance_checklist": (
+                "- [ ] replay_workload.sql 已脱敏并覆盖核心查询路径。\n"
+                "- [ ] replay_before.out 和 replay_after.out 均已生成。\n"
+                "- [ ] P95 响应时间没有超过评审阈值。\n"
+                "- [ ] 无新增 SQL 错误码或锁等待尖峰。\n"
+                "- [ ] 关键 SQL EXPLAIN 无异常计划漂移。\n"
+                "- [ ] 回放结论已写入生产变更准入意见。"
+            ),
+        }
+    if scenario == "partition":
+        return {
+            "risk_assessment": (
+                f"风险等级：{risk_level}\n\n"
+                "- 分区边界：DETACH PARTITION 前必须确认 P2025Q4 边界和保留策略一致。\n"
+                "- 依赖影响：外键、索引、报表和归档链路可能依赖历史分区。\n"
+                "- 可用性：分区维护期间需观察锁等待，避免影响热分区查询。\n"
+                "- 空间回收：归档表备份和存储回收动作需要分阶段执行。\n"
+                "- 回退限制：DETACH 后回退需要 ATTACH/LOAD/校验，不能依赖简单撤销。"
+            ),
+            "runbook": (
+                "1. 宣布进入分区归档维护窗口，冻结同表装载和结构变更。\n"
+                "2. 查询 SYSCAT.DATAPARTITIONS，确认 P2025Q4 边界、行数和状态。\n"
+                "3. 确认下游报表已不再在线访问 P2025Q4 数据。\n"
+                "4. 执行 ALTER TABLE ... DETACH PARTITION 到归档表。\n"
+                "5. 校验主表当前分区、归档表行数和对象状态。\n"
+                "6. 对主表执行 RUNSTATS，并备份归档表 HIST.TXN_EVENT_2025Q4_ARCHIVE。\n"
+                "7. 通知数据归档负责人维护完成，并提交空间回收建议。"
+            ),
+            "rollback_plan": (
+                "回滚触发条件：DETACH 分区错误、归档表行数异常、报表缺数，"
+                "或主表查询出现不可接受退化。\n\n"
+                "- 停止归档表备份和空间回收动作，保留 DETACH 输出。\n"
+                "- 使用 ATTACH PARTITION 或受控 LOAD 路径恢复错误分区。\n"
+                "- 重新执行完整性检查、RUNSTATS 和报表样本验证。\n"
+                "- 通知归档负责人暂停后续季度分区维护。\n"
+                "- 将分区边界、行数差异和恢复动作写入复盘。"
+            ),
+            "precheck_sql": (
+                "-- 分区边界和状态\n"
+                "SELECT TABSCHEMA, TABNAME, DATAPARTITIONNAME, LOWVALUE, HIGHVALUE, STATUS\n"
+                "FROM SYSCAT.DATAPARTITIONS\n"
+                "WHERE TABSCHEMA='HIST' AND TABNAME='TXN_EVENT';\n\n"
+                "-- 待归档分区行数抽样\n"
+                "SELECT COUNT(*) FROM HIST.TXN_EVENT WHERE TXN_DATE >= DATE('2025-10-01') AND TXN_DATE < DATE('2026-01-01');\n\n"
+                "-- 依赖对象\n"
+                "SELECT TABSCHEMA, TABNAME, CONSTNAME, TYPE FROM SYSCAT.TABCONST WHERE TABSCHEMA='HIST';"
+            ),
+            "acceptance_checklist": (
+                "- [ ] SYSCAT.DATAPARTITIONS 显示 P2025Q4 边界与审批一致。\n"
+                "- [ ] HIST.TXN_EVENT_2025Q4_ARCHIVE 行数与归档范围一致。\n"
+                "- [ ] 主表热分区查询和关键报表验证通过。\n"
+                "- [ ] RUNSTATS 已完成，访问计划无异常退化。\n"
+                "- [ ] 归档表备份完成，空间回收建议已记录。\n"
+                "- [ ] ATTACH/LOAD 回退路径和证据已归档。"
+            ),
+        }
     if scenario == "hadr":
         return {
             "risk_assessment": (
