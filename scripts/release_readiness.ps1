@@ -148,6 +148,55 @@ if (Test-Path -LiteralPath $readme) {
     Add-Check "readme:release-checklist" ($readmeText.Contains("docs/RELEASE_CHECKLIST.md")) "README should link release checklist"
 }
 
+$packageScript = Join-Path $PSScriptRoot "package_release.ps1"
+$packageTemp = Join-Path ([System.IO.Path]::GetTempPath()) ("changeops-readiness-package-" + [System.Guid]::NewGuid().ToString("n"))
+try {
+    if (Test-Path -LiteralPath $packageTemp) {
+        Remove-Item -LiteralPath $packageTemp -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $packageScript) {
+        try {
+            & $packageScript -OutputDir $packageTemp -Version "readiness-check" | Out-Null
+            $manifestPath = Join-Path $packageTemp "dba-changeops-ai-workbench-readiness-check-manifest.json"
+            $packagePath = Join-Path $packageTemp "dba-changeops-ai-workbench-readiness-check.zip"
+
+            Add-Check "package:build" (Test-Path -LiteralPath $packagePath) "release package should be buildable"
+            Add-Check "package:manifest" (Test-Path -LiteralPath $manifestPath) "release package manifest should be generated"
+
+            if (Test-Path -LiteralPath $manifestPath) {
+                $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+                $blockedPrefixes = @(".git/", ".omx/", ".venv/", "outputs/", "artifacts/tmp/", "artifacts/releases/")
+                $blockedFiles = @(
+                    $manifest.files |
+                        Where-Object {
+                            $filePath = $_.path
+                            foreach ($prefix in $blockedPrefixes) {
+                                if ($filePath.StartsWith($prefix)) {
+                                    return $true
+                                }
+                            }
+                            return $false
+                        } |
+                        Select-Object -ExpandProperty path
+                )
+                Add-Check "package:manifest-clean" ($blockedFiles.Count -eq 0) ("package manifest should exclude local artifacts: " + ($blockedFiles -join ", "))
+                Add-Check "package:file-count" ([int]$manifest.file_count -gt 0) "release package should contain delivery files"
+            }
+        }
+        catch {
+            Add-Check "package:build" $false $_.Exception.Message
+        }
+    }
+    else {
+        Add-Check "package:build" $false "Missing package script: $packageScript"
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $packageTemp) {
+        Remove-Item -LiteralPath $packageTemp -Recurse -Force
+    }
+}
+
 if (-not $SkipRuntime) {
     try {
         $health = Invoke-RestMethod -Uri (Join-Url $BaseUrl "/healthz")
