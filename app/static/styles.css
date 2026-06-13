@@ -732,8 +732,70 @@ td small {
   background: #d08a1d;
 }
 
+.status-dot-inline.info {
+  background: #3d72b8;
+}
+
+.status-dot-inline.ok {
+  background: #21b08a;
+}
+
 .status-dot-inline.error {
   background: var(--red);
+}
+
+.action-panel {
+  margin-bottom: 18px;
+}
+
+.action-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+
+.action-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.action-item > div {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 5px 10px;
+  align-items: start;
+}
+
+.action-item strong {
+  color: #26353b;
+}
+
+.action-item p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.action-item.error {
+  border-color: #efb2b2;
+  background: #fff5f5;
+}
+
+.action-item.warning {
+  border-color: #f1d09a;
+  background: #fffaf0;
+}
+
+.action-item.info {
+  border-color: #b8cef0;
+  background: #f4f8ff;
 }
 
 .ops-note {
@@ -1366,8 +1428,13 @@ button[disabled] {
   .form-grid,
   .metadata-grid,
   .readiness-metrics,
-  .check-list {
+  .check-list,
+  .action-item {
     grid-template-columns: 1fr;
+  }
+
+  .action-item .button {
+    justify-self: stretch;
   }
 
   th,

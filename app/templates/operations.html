@@ -56,6 +56,27 @@
   </aside>
 </section>
 
+<section class="panel action-panel">
+  <div class="panel-header">
+    <div>
+      <h2>下一步动作</h2>
+      <p>把运行状态转成可执行的验收清单</p>
+    </div>
+  </div>
+  <div class="action-list">
+    {% for action in status.next_actions %}
+      <article class="action-item {{ action.level }}">
+        <div>
+          <span class="status-dot-inline {{ action.level }}"></span>
+          <strong>{{ action.title }}</strong>
+          <p>{{ action.detail }}</p>
+        </div>
+        <a class="button secondary" href="{{ action.href }}">{{ action.cta }}</a>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
 <section class="readiness-panel">
   <div class="readiness-heading">
     <p class="section-label">交付数据</p>

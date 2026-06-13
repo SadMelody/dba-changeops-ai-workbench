@@ -95,7 +95,8 @@ Get-ChildItem -Path $projectRoot -Directory -Recurse -Force -Filter "__pycache__
         Remove-ProjectItem $relative
     }
 
-Get-ChildItem -Path $projectRoot -Recurse -Force -Include "*.pyc", "*.pyo" |
+$runtimeFilePatterns = @("*.db", "*.db-journal", "*.log", "*.pid", "*.pyc", "*.pyo")
+Get-ChildItem -Path $projectRoot -Recurse -Force -Include $runtimeFilePatterns |
     Where-Object { -not (Test-SkippedToolPath $_.FullName) } |
     ForEach-Object {
         $relative = [System.IO.Path]::GetRelativePath($projectRoot, $_.FullName)

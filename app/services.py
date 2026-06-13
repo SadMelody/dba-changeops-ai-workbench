@@ -378,6 +378,67 @@ def operational_status(cases: list[Case], settings: BaseModel, database_ok: bool
             "label": "真实模型已配置" if llm_configured else "离线兜底可用",
         },
     ]
+    next_actions: list[dict[str, str]] = []
+    if not database_ok:
+        next_actions.append(
+            {
+                "level": "error",
+                "title": "修复数据库连接",
+                "detail": "检查 DATABASE_URL、数据库权限和网络连通性，先让 /healthz 返回 ok。",
+                "href": "/healthz",
+                "cta": "查看健康检查",
+            }
+        )
+    if database_ok and not has_seed_cases:
+        next_actions.append(
+            {
+                "level": "warning",
+                "title": "恢复合成演示案例",
+                "detail": "确认应用启动流程已执行数据初始化，或重新部署服务以写入 5 个内置 DBA 场景。",
+                "href": "/",
+                "cta": "查看案例库",
+            }
+        )
+    if database_ok and has_seed_cases and not has_ready_case:
+        next_actions.append(
+            {
+                "level": "warning",
+                "title": "生成首份交付方案",
+                "detail": "进入演示台点击“一键生成交付包”，验证 AI 分析、兜底和交付物生成链路。",
+                "href": "/demo",
+                "cta": "打开演示台",
+            }
+        )
+    if database_ok and has_seed_cases and not has_signed_run:
+        next_actions.append(
+            {
+                "level": "warning",
+                "title": "完成一份签收闭环",
+                "detail": "点击“一键完整闭环”或手动确认 6 类交付物后签收，证明复核、确认、签收和导出链路可用。",
+                "href": "/demo",
+                "cta": "完成演示闭环",
+            }
+        )
+    if not llm_configured:
+        next_actions.append(
+            {
+                "level": "info",
+                "title": "按需接入真实模型",
+                "detail": "当前离线兜底适合稳定演示；需要展示真实模型调用时，配置 LLM_API_KEY、LLM_BASE_URL 和 LLM_MODEL。",
+                "href": "/ops",
+                "cta": "查看配置状态",
+            }
+        )
+    if not next_actions:
+        next_actions.append(
+            {
+                "level": "ok",
+                "title": "保持发布前验证",
+                "detail": "运行 release_readiness 和线上冒烟检查，确认代码、样例交付包和公开材料仍然完整。",
+                "href": "/api/system/status",
+                "cta": "查看状态 JSON",
+            }
+        )
     is_ready = database_ok and has_seed_cases
     return {
         "service": "dba-changeops-ai-workbench",
@@ -392,6 +453,7 @@ def operational_status(cases: list[Case], settings: BaseModel, database_ok: bool
         "ready": is_ready,
         "summary": public_summary,
         "checks": checks,
+        "next_actions": next_actions,
         "latest_run_id": latest_run.id if latest_run else None,
     }
 

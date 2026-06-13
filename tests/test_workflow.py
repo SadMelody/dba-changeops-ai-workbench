@@ -695,6 +695,7 @@ def test_run_can_approve_all_artifacts_as_delivery_package() -> None:
         assert {"name": "交付签收", "state": "ok", "label": "1/1 个交付包已签收"} in status_payload[
             "checks"
         ]
+        assert [action["title"] for action in status_payload["next_actions"]] == ["按需接入真实模型"]
 
     db = SessionLocal()
     approved_revisions = (
@@ -861,6 +862,9 @@ def test_operations_status_page_and_api() -> None:
         assert "可交付试运行" in page.text
         assert "离线兜底" in page.text
         assert "查看 JSON" in page.text
+        assert "下一步动作" in page.text
+        assert "生成首份交付方案" in page.text
+        assert "完成一份签收闭环" in page.text
 
         payload_response = client.get("/api/system/status")
         assert payload_response.status_code == 200
@@ -882,6 +886,13 @@ def test_operations_status_page_and_api() -> None:
         signoff_check = next(check for check in payload["checks"] if check["name"] == "交付签收")
         assert signoff_check["state"] == "warning"
         assert signoff_check["label"] == "暂无签收记录"
+        assert [action["title"] for action in payload["next_actions"]] == [
+            "生成首份交付方案",
+            "完成一份签收闭环",
+            "按需接入真实模型",
+        ]
+        assert payload["next_actions"][0]["href"] == "/demo"
+        assert payload["next_actions"][0]["cta"] == "打开演示台"
 
 
 def test_health_check_verifies_database() -> None:
