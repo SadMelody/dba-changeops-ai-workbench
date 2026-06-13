@@ -101,6 +101,90 @@ def _run_payload(run) -> dict[str, Any]:
     }
 
 
+def _case_summary_payload(case: Case) -> dict[str, Any]:
+    return {
+        "id": case.id,
+        "title": case.title,
+        "db_type": case.db_type,
+        "target_system": case.target_system,
+        "change_type": case.change_type,
+        "priority": case.priority,
+        "environment": case.environment,
+        "owner": case.owner,
+        "approver": case.approver,
+        "planned_window": case.planned_window,
+        "status": case.status,
+        "url": f"/cases/{case.id}",
+    }
+
+
+def _revision_payload(revision) -> dict[str, Any]:
+    return {
+        "id": revision.id,
+        "version": revision.version,
+        "event": revision.event,
+        "event_label": event_label(revision.event),
+        "status": revision.status,
+        "status_label": status_label(revision.status),
+        "created_at": format_dt(revision.created_at),
+        "content": revision.content,
+    }
+
+
+def _artifact_payload(artifact: Artifact) -> dict[str, Any]:
+    revisions = sorted(artifact.revisions, key=lambda revision: revision.version, reverse=True)
+    return {
+        "id": artifact.id,
+        "artifact_type": artifact.artifact_type,
+        "title": artifact.title,
+        "status": artifact.status,
+        "status_label": status_label(artifact.status),
+        "approved_at": format_dt(artifact.approved_at),
+        "updated_at": format_dt(artifact.updated_at),
+        "content": artifact.content,
+        "diff": artifact_content_diff(artifact),
+        "revisions": [_revision_payload(revision) for revision in revisions],
+        "revisions_url": f"/api/artifacts/{artifact.id}/revisions",
+        "diff_url": f"/api/artifacts/{artifact.id}/diff",
+    }
+
+
+def _llm_log_payload(log) -> dict[str, Any]:
+    return {
+        "id": log.id,
+        "provider": log.provider,
+        "provider_label": provider_label(log.provider),
+        "model": log.model,
+        "model_label": provider_label(log.model),
+        "status": log.status,
+        "status_label": status_label(log.status),
+        "latency_ms": log.latency_ms,
+        "request_payload": log.request_payload,
+        "response_payload": log.response_payload,
+        "error_message": log.error_message,
+        "created_at": format_dt(log.created_at),
+    }
+
+
+def _run_detail_payload(run) -> dict[str, Any]:
+    return {
+        **_run_payload(run),
+        "case": _case_summary_payload(run.case),
+        "case_inputs": {
+            "business_context": run.case.business_context,
+            "source_sql": run.case.source_sql,
+            "schema_notes": run.case.schema_notes,
+            "constraints": run.case.constraints,
+        },
+        "artifacts": [_artifact_payload(artifact) for artifact in run.artifacts],
+        "llm_logs": [_llm_log_payload(log) for log in run.llm_logs],
+        "export_urls": {
+            "markdown": f"/cases/{run.case_id}/export",
+            "pdf": f"/cases/{run.case_id}/export.pdf",
+        },
+    }
+
+
 def _case_payload(case: Case, include_runs: bool = False) -> dict[str, Any]:
     latest_run = case.runs[0] if case.runs else None
     payload: dict[str, Any] = {
@@ -400,6 +484,14 @@ def runs_api(case_id: int, db: Session = Depends(get_db)) -> JSONResponse:
             "runs": [_run_payload(run) for run in case.runs],
         }
     )
+
+
+@app.get("/api/runs/{run_id}")
+def run_api(run_id: int, db: Session = Depends(get_db)) -> JSONResponse:
+    run = get_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    return JSONResponse(_run_detail_payload(run))
 
 
 @app.get("/api/artifacts/{artifact_id}/revisions")

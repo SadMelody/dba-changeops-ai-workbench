@@ -192,6 +192,23 @@ FastAPI 自动生成的交互式文档也可访问：
 - `delivery`
 - `signoff`
 
+### `GET /api/runs/{run_id}`
+
+查询单次分析运行的完整交付包 JSON，适合外部系统同步交付物、审计记录或自动化验收。
+
+响应字段在运行摘要基础上额外包含：
+
+- `case`：案例摘要和页面入口。
+- `case_inputs`：本次分析使用的业务背景、SQL、表结构和约束。
+- `artifacts`：6 类交付物正文、确认状态、版本记录、最近内容差异和版本 API 链接。
+- `llm_logs`：模型提供方、模型名、状态、耗时、失败原因，以及已脱敏的请求和响应审计 payload。
+- `export_urls`：Markdown 和 PDF 交付包下载入口。
+
+状态码：
+
+- `200`：查询成功。
+- `404`：分析记录不存在。
+
 ## 交付物复核
 
 ### `POST /api/artifacts/{artifact_id}`

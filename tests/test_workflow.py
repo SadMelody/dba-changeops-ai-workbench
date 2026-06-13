@@ -361,6 +361,37 @@ def test_create_analyze_approve_and_export_workflow() -> None:
     assert diff_payload["additions"] >= 1
     assert any(line["kind"] == "add" and edited_content in line["text"] for line in diff_payload["lines"])
 
+    run_detail_response = client.get(f"/api/runs/{run_id}")
+    assert run_detail_response.status_code == 200
+    run_detail_payload = run_detail_response.json()
+    assert run_detail_payload["id"] == run_id
+    assert run_detail_payload["case"]["id"] == case_id
+    assert run_detail_payload["case_inputs"]["source_sql"] == "CREATE INDEX IX_TEST ON APP.T(ID);"
+    assert run_detail_payload["delivery"]["label"] == "1/6 已确认"
+    assert run_detail_payload["signoff"]["label"] == "待签收"
+    assert run_detail_payload["export_urls"] == {
+        "markdown": f"/cases/{case_id}/export",
+        "pdf": f"/cases/{case_id}/export.pdf",
+    }
+    assert len(run_detail_payload["artifacts"]) == len(ARTIFACT_TITLES)
+    detail_artifact = next(
+        artifact for artifact in run_detail_payload["artifacts"] if artifact["id"] == artifact_id
+    )
+    assert detail_artifact["content"] == edited_content
+    assert detail_artifact["status_label"] == "已确认"
+    assert detail_artifact["diff"]["available"] is True
+    assert detail_artifact["revisions_url"] == f"/api/artifacts/{artifact_id}/revisions"
+    assert [revision["event"] for revision in detail_artifact["revisions"]] == [
+        "approved",
+        "edited",
+        "generated",
+    ]
+    assert len(run_detail_payload["llm_logs"]) == 1
+    assert run_detail_payload["llm_logs"][0]["status_label"] == "兜底成功"
+    assert run_detail_payload["llm_logs"][0]["request_payload"]["reason"] == (
+        "LLM_API_KEY is not configured"
+    )
+
     run_page = client.get(f"/cases/{case_id}/runs/{run_id}")
     assert run_page.status_code == 200
     assert "版本记录" in run_page.text
@@ -460,6 +491,10 @@ def test_create_analyze_approve_and_export_workflow() -> None:
         retry_payload["run_id"],
         run_id,
     ]
+
+    missing_run_response = client.get("/api/runs/999999")
+    assert missing_run_response.status_code == 404
+    assert missing_run_response.json()["detail"] == "分析记录不存在"
 
 
 def test_create_case_api_rejects_invalid_json_and_field_boundaries() -> None:
