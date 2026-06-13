@@ -60,6 +60,11 @@ https://your-app.example.com/healthz
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
 
+此时请看输出里的两个字段：
+
+- `demo_ready: true`：代码、样例材料和线上 Demo 已经可展示。
+- `ready: false` 且 `delivery_mode: "demo-only"`：备用演示视频仍未补齐，严格公开投递还没完成。
+
 ## 平台环境变量
 
 | 变量 | 建议值 | 说明 |

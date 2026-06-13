@@ -154,6 +154,14 @@ README 发布链接回填：
 
 该脚本不仅检查 README 是否回填链接，也会实际访问线上演示地址和备用视频地址。备用视频如果仍是私有链接、登录后可见链接或已过期分享链接，不算完成公开交付。
 
+视频暂缓时，可以先运行：
+
+```powershell
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
+```
+
+其中 `demo_ready: true` 表示本地材料和线上 Demo 已可展示；`ready: false` 表示还缺公开视频链接，不能宣称严格公开交付完成。
+
 部署配置一致性审计：
 
 ```powershell

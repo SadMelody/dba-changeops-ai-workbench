@@ -233,6 +233,14 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
 ```
 
+视频暂缓时，可以先用真实 Demo 地址检查代码、样例材料和线上闭环：
+
+```powershell
+.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -CompleteDemo -SkipRuntime
+```
+
+这时 `demo_ready: true` 表示“代码、样例材料和线上 Demo 已可展示”；总 `ready` 仍会保持 `false`，直到补齐可访问的备用视频并通过严格公开交付审计。
+
 需要单独检查部署配置一致性时：
 
 ```powershell
@@ -320,5 +328,5 @@ artifacts/samples/     可直接展示的样例交付包
 
 ## 下一步计划
 
-- 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -CompleteDemo -Strict` 做公开交付审计。
+- 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -VideoUrl <视频地址> -CompleteDemo -Strict` 做严格公开交付审计。
 - 扩展更多 DB2 专项模板和真实评测集，例如 HADR 切换、备份恢复、表空间扩容和权限变更。

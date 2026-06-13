@@ -73,10 +73,11 @@ function Invoke-JsonScript {
     $exitCode = $LASTEXITCODE
     $text = ($output | Out-String).Trim()
     $jsonStart = $text.IndexOf("{")
+    $jsonEnd = $text.LastIndexOf("}")
     $payload = $null
-    if ($jsonStart -ge 0) {
+    if ($jsonStart -ge 0 -and $jsonEnd -ge $jsonStart) {
         try {
-            $payload = $text.Substring($jsonStart) | ConvertFrom-Json
+            $payload = $text.Substring($jsonStart, $jsonEnd - $jsonStart + 1) | ConvertFrom-Json
         }
         catch {
             $payload = $null
@@ -84,10 +85,51 @@ function Invoke-JsonScript {
     }
 
     return [pscustomobject]@{
+        label = [System.IO.Path]::GetFileName($Path)
         exit_code = $exitCode
         payload = $payload
         raw = $text
     }
+}
+
+function Test-ReadyPayload {
+    param([pscustomobject]$Result)
+
+    return $Result.exit_code -eq 0 -and $null -ne $Result.payload -and [bool]$Result.payload.ready
+}
+
+function Get-JsonScriptDetail {
+    param(
+        [pscustomobject]$Result,
+        [string]$SuccessDetail
+    )
+
+    if (Test-ReadyPayload $Result) {
+        return $SuccessDetail
+    }
+
+    if ($Result.exit_code -ne 0) {
+        if ($Result.payload -and $Result.payload.failures) {
+            $failedNames = @($Result.payload.failures | Select-Object -ExpandProperty name)
+            if ($failedNames.Count -gt 0) {
+                return "$($Result.label) failed checks: " + ($failedNames -join ", ")
+            }
+        }
+        return "$($Result.label) failed with exit code $($Result.exit_code)"
+    }
+
+    if ($null -eq $Result.payload) {
+        return "$($Result.label) did not return parseable JSON"
+    }
+
+    if ($Result.payload.failures) {
+        $failedNames = @($Result.payload.failures | Select-Object -ExpandProperty name)
+        if ($failedNames.Count -gt 0) {
+            return "$($Result.label) failed checks: " + ($failedNames -join ", ")
+        }
+    }
+
+    return "$($Result.label) did not report ready=true"
 }
 
 function Test-UrlReachable {
@@ -141,7 +183,7 @@ if (-not $SkipRuntime) {
 }
 
 $readiness = Invoke-JsonScript (Join-Path $PSScriptRoot "release_readiness.ps1") @("-SkipRuntime")
-Add-Check "release:materials" ($readiness.exit_code -eq 0) "release materials should pass local non-runtime readiness"
+Add-Check "release:materials" (Test-ReadyPayload $readiness) (Get-JsonScriptDetail $readiness "release materials passed local non-runtime readiness")
 
 if ($demo) {
     $verifyArgs = @("-BaseUrl", $demo)
@@ -154,16 +196,7 @@ if ($demo) {
 
     try {
         $verify = Invoke-JsonScript (Join-Path $PSScriptRoot "verify_online_release.ps1") $verifyArgs
-        $onlineOk = $verify.exit_code -eq 0 -and $null -ne $verify.payload -and [bool]$verify.payload.ready
-        $onlineDetail = "online demo URL should pass release verification"
-        if ($null -eq $verify.payload) {
-            $onlineDetail = "online verification did not return parseable JSON"
-        }
-        elseif (-not [bool]$verify.payload.ready -and $verify.payload.failures) {
-            $failedNames = @($verify.payload.failures | Select-Object -ExpandProperty name)
-            $onlineDetail = "online verification failed: " + ($failedNames -join ", ")
-        }
-        Add-Check "online:demo" $onlineOk $onlineDetail
+        Add-Check "online:demo" (Test-ReadyPayload $verify) (Get-JsonScriptDetail $verify "online demo URL passed release verification")
     }
     catch {
         Add-Check "online:demo" $false $_.Exception.Message
@@ -199,7 +232,7 @@ if ($demo -and $video -and $readmeExists) {
             $auditArgs += "-AllowHttp"
         }
         $audit = Invoke-JsonScript (Join-Path $PSScriptRoot "public_delivery_audit.ps1") $auditArgs
-        Add-Check "public:delivery-audit" ($audit.exit_code -eq 0) "public delivery audit should pass"
+        Add-Check "public:delivery-audit" (Test-ReadyPayload $audit) (Get-JsonScriptDetail $audit "public delivery audit passed")
     }
     catch {
         Add-Check "public:delivery-audit" $false $_.Exception.Message
@@ -218,8 +251,33 @@ if (-not $demo -or -not $video) {
 }
 
 $failures = @($checks | Where-Object { -not $_.ok })
+$strictReady = $failures.Count -eq 0
+$strictOnlyCheckNames = @(
+    "online:video",
+    "online:video-reachable",
+    "readme:video-url",
+    "public:delivery-audit"
+)
+$demoBlockingFailures = @(
+    $failures |
+        Where-Object {
+            $strictOnlyCheckNames -notcontains $_.name
+        }
+)
+$demoReady = $demoBlockingFailures.Count -eq 0
+$deliveryMode = if ($strictReady) {
+    "strict-public"
+}
+elseif ($demoReady) {
+    "demo-only"
+}
+else {
+    "incomplete"
+}
 $result = [pscustomobject]@{
-    ready = $failures.Count -eq 0
+    ready = $strictReady
+    demo_ready = $demoReady
+    delivery_mode = $deliveryMode
     base_url = if ($SkipRuntime) { $null } else { $BaseUrl }
     demo_url = $demo
     video_url = $video
@@ -228,6 +286,7 @@ $result = [pscustomobject]@{
     checks = $checks
     next_actions = $nextActions
     failures = $failures
+    demo_blocking_failures = $demoBlockingFailures
 }
 
 $result | ConvertTo-Json -Depth 6
