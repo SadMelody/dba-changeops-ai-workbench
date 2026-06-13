@@ -49,6 +49,55 @@ FastAPI 自动生成的交互式文档也可访问：
 
 ## 案例与分析
 
+### `GET /api/cases`
+
+查询案例列表，供工单系统、自动化脚本或外部展示页同步当前工作台状态。
+
+响应示例：
+
+```json
+{
+  "total": 5,
+  "cases": [
+    {
+      "id": 1,
+      "title": "DB2 客户订单慢查询索引变更",
+      "db_type": "DB2 LUW",
+      "target_system": "客户订单系统",
+      "change_type": "索引变更",
+      "priority": "P2",
+      "environment": "生产",
+      "owner": "结算 DBA",
+      "approver": "变更经理",
+      "planned_window": "2026-06-03 23:00-00:30",
+      "status": "draft",
+      "created_at": "2026-06-02 18:00",
+      "updated_at": "2026-06-02 18:00",
+      "latest_run": null,
+      "run_count": 0,
+      "url": "/cases/1"
+    }
+  ]
+}
+```
+
+### `GET /api/cases/{case_id}`
+
+查询单个案例详情，包含输入材料、最新分析运行和历史运行摘要。
+
+响应字段在列表摘要基础上额外包含：
+
+- `business_context`
+- `source_sql`
+- `schema_notes`
+- `constraints`
+- `runs`
+
+状态码：
+
+- `200`：查询成功。
+- `404`：案例不存在。
+
 ### `POST /api/cases`
 
 创建变更案例。

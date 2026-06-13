@@ -87,6 +87,53 @@ def _validation_error(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=status_code, detail=detail)
 
 
+def _run_payload(run) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "status": run.status,
+        "provider": run.provider,
+        "model": run.model,
+        "completed_at": format_dt(run.completed_at),
+        "summary": run.summary,
+        "delivery": delivery_summary(run),
+        "signoff": run_signoff_summary(run),
+        "url": f"/cases/{run.case_id}/runs/{run.id}",
+    }
+
+
+def _case_payload(case: Case, include_runs: bool = False) -> dict[str, Any]:
+    latest_run = case.runs[0] if case.runs else None
+    payload: dict[str, Any] = {
+        "id": case.id,
+        "title": case.title,
+        "db_type": case.db_type,
+        "target_system": case.target_system,
+        "change_type": case.change_type,
+        "priority": case.priority,
+        "environment": case.environment,
+        "owner": case.owner,
+        "approver": case.approver,
+        "planned_window": case.planned_window,
+        "status": case.status,
+        "created_at": format_dt(case.created_at),
+        "updated_at": format_dt(case.updated_at),
+        "latest_run": _run_payload(latest_run) if latest_run else None,
+        "run_count": len(case.runs),
+        "url": f"/cases/{case.id}",
+    }
+    if include_runs:
+        payload.update(
+            {
+                "business_context": case.business_context,
+                "source_sql": case.source_sql,
+                "schema_notes": case.schema_notes,
+                "constraints": case.constraints,
+                "runs": [_run_payload(run) for run in case.runs],
+            }
+        )
+    return payload
+
+
 @app.get("/healthz")
 def healthz(db: Session = Depends(get_db)) -> JSONResponse:
     try:
@@ -258,6 +305,25 @@ async def create_case_api(request: Request, db: Session = Depends(get_db)) -> JS
     return JSONResponse({"id": case.id, "title": case.title, "status": case.status})
 
 
+@app.get("/api/cases")
+def cases_api(db: Session = Depends(get_db)) -> JSONResponse:
+    cases = list_cases(db)
+    return JSONResponse(
+        {
+            "total": len(cases),
+            "cases": [_case_payload(case) for case in cases],
+        }
+    )
+
+
+@app.get("/api/cases/{case_id}")
+def case_api(case_id: int, db: Session = Depends(get_db)) -> JSONResponse:
+    case = get_case(db, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="案例不存在")
+    return JSONResponse(_case_payload(case, include_runs=True))
+
+
 @app.get("/cases/{case_id}", response_class=HTMLResponse)
 def case_detail(case_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     case = get_case(db, case_id)
@@ -331,19 +397,7 @@ def runs_api(case_id: int, db: Session = Depends(get_db)) -> JSONResponse:
     return JSONResponse(
         {
             "case_id": case.id,
-            "runs": [
-                {
-                    "id": run.id,
-                    "status": run.status,
-                    "provider": run.provider,
-                    "model": run.model,
-                    "completed_at": format_dt(run.completed_at),
-                    "summary": run.summary,
-                    "delivery": delivery_summary(run),
-                    "signoff": run_signoff_summary(run),
-                }
-                for run in case.runs
-            ],
+            "runs": [_run_payload(run) for run in case.runs],
         }
     )
 

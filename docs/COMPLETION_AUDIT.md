@@ -8,15 +8,15 @@
 
 仍需外部补齐的项：
 
-- 线上部署 URL：需要部署平台账号生成真实地址。
-- 备用演示视频：需要完成实际录屏和上传。
+- 线上部署 URL：已完成，`https://dba-changeops-ai-workbench.onrender.com`。
+- 备用演示视频：暂缓；后续补齐无需登录的视频地址。
 
 ## 产品能力覆盖
 
 | 计划能力 | 当前证据 | 验收方式 |
 | --- | --- | --- |
 | 创建变更案例 | `POST /api/cases`、`POST /cases`、`app/templates/new_case.html` | `tests/test_workflow.py` |
-| 案例列表和详情页 | `/`、`/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 首页测试、中文界面审计 |
+| 案例列表和详情页 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 工作流测试、首页测试、中文界面审计 |
 | AI 分析触发 | `POST /api/cases/{id}/analyze`、`POST /cases/{id}/analyze` | 工作流测试、冒烟脚本 |
 | 历史分析记录 | `GET /api/cases/{id}/runs`、`analysis_runs` | 工作流测试 |
 | 风险评估 | `risk_assessment` 交付物 | 工作流测试检查 6 类交付物 |
@@ -42,6 +42,8 @@
 | 计划接口 | 当前状态 | 证据 |
 | --- | --- | --- |
 | `POST /api/cases` | 已实现 | `app/main.py` |
+| `GET /api/cases` | 已实现 | `app/main.py` |
+| `GET /api/cases/{id}` | 已实现 | `app/main.py` |
 | `POST /api/cases/{id}/analyze` | 已实现 | `app/main.py` |
 | `GET /api/cases/{id}/runs` | 已实现 | `app/main.py` |
 | `POST /api/artifacts/{id}/approve` | 已实现 | `app/main.py` |
@@ -185,9 +187,8 @@ README 发布链接回填：
 
 ## 完成度边界
 
-本地仓库已经达到可面试演示和可交付试运行状态。严格意义上的完整公开交付仍需外部动作完成：
+本地仓库和线上 Demo 已经达到可面试演示和可交付试运行状态。严格意义上的完整公开交付仍需外部动作完成：
 
-1. 部署到 Render/Railway/Fly.io 等平台，生成真实在线演示地址。
-2. 录制并上传 3-5 分钟备用演示视频。
-3. 将线上地址和视频链接回填到 README 顶部。
-4. 使用 `scripts/delivery_status.ps1 -Strict` 或 `scripts/public_delivery_audit.ps1` 确认线上演示和视频链接都可访问。
+1. 录制并上传 3-5 分钟备用演示视频。
+2. 将视频链接回填到 README 顶部。
+3. 使用 `scripts/delivery_status.ps1 -Strict` 或 `scripts/public_delivery_audit.ps1` 确认线上演示和视频链接都可访问。

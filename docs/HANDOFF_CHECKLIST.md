@@ -78,7 +78,7 @@ py -B -m pytest -q -p no:cacheprovider
 | 交付要求 | 当前证据 |
 | --- | --- |
 | 创建变更案例 | `/cases/new`、`POST /api/cases` |
-| 案例列表和详情 | `/`、`/cases/{id}` |
+| 案例列表和详情 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}` |
 | 中文本地界面 | Jinja2 模板、`app/static/styles.css` 和本地增强脚本 |
 | AI 分析工作流 | `POST /api/cases/{id}/analyze`、`analysis_runs` |
 | 国内模型适配 | `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` |

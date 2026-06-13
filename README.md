@@ -318,5 +318,5 @@ artifacts/samples/     可直接展示的样例交付包
 
 ## 下一步计划
 
-- 补充线上部署地址和产品讲解视频，并用 `scripts/delivery_status.ps1 -CompleteDemo -Strict` 做公开交付审计。
+- 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -CompleteDemo -Strict` 做公开交付审计。
 - 扩展更多 DB2 专项模板和真实评测集，例如 HADR 切换、备份恢复、表空间扩容和权限变更。

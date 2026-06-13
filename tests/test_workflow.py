@@ -490,6 +490,69 @@ def test_create_case_api_rejects_invalid_json_and_field_boundaries() -> None:
     assert "目标系统不能超过 120 个字符" in detail
 
 
+def test_cases_api_lists_and_returns_case_detail_with_latest_run() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    empty_list_response = client.get("/api/cases")
+    assert empty_list_response.status_code == 200
+    assert empty_list_response.json() == {"total": 0, "cases": []}
+
+    create_response = client.post(
+        "/api/cases",
+        json={
+            "title": "DB2 query API case",
+            "db_type": "DB2 LUW",
+            "target_system": "客户订单系统",
+            "change_type": "索引变更",
+            "priority": "P2",
+            "environment": "生产",
+            "owner": "结算 DBA",
+            "approver": "变更经理",
+            "planned_window": "2026-06-03 23:00-00:30",
+            "business_context": "验证列表和详情 JSON API 可以被外部系统读取。",
+            "source_sql": "CREATE INDEX IX_QUERY_API ON APP.ORDERS(ID);",
+            "schema_notes": "合成测试表结构。",
+            "constraints": "维护窗口较短。",
+        },
+    )
+    assert create_response.status_code == 200
+    case_id = create_response.json()["id"]
+
+    list_response = client.get("/api/cases")
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    assert list_payload["total"] == 1
+    assert len(list_payload["cases"]) == 1
+    first_case = list_payload["cases"][0]
+    assert first_case["id"] == case_id
+    assert first_case["title"] == "DB2 query API case"
+    assert first_case["latest_run"] is None
+    assert first_case["run_count"] == 0
+    assert first_case["url"] == f"/cases/{first_case['id']}"
+
+    analyze_response = client.post(f"/api/cases/{first_case['id']}/analyze")
+    assert analyze_response.status_code == 200
+    run_id = analyze_response.json()["run_id"]
+
+    detail_response = client.get(f"/api/cases/{first_case['id']}")
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert detail_payload["id"] == first_case["id"]
+    assert detail_payload["business_context"]
+    assert detail_payload["source_sql"]
+    assert detail_payload["run_count"] == 1
+    assert len(detail_payload["runs"]) == 1
+    assert detail_payload["latest_run"]["id"] == run_id
+    assert detail_payload["latest_run"]["delivery"]["label"] == "0/6 已确认"
+    assert detail_payload["latest_run"]["signoff"]["label"] == "待签收"
+    assert detail_payload["latest_run"]["url"] == f"/cases/{first_case['id']}/runs/{run_id}"
+
+    missing_response = client.get("/api/cases/999999")
+    assert missing_response.status_code == 404
+    assert missing_response.json()["detail"] == "案例不存在"
+
+
 def test_review_inputs_reject_oversized_artifact_and_signoff_fields() -> None:
     reset_db()
     client = TestClient(app)
