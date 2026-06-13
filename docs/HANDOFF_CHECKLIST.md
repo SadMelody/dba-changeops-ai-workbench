@@ -103,7 +103,8 @@ py -B -m app.evaluation
 | 版本记录和差异 | `artifact_revisions`、`GET /api/artifacts/{id}/revisions`、`GET /api/artifacts/{id}/diff` |
 | 整包确认和签收 | `POST /api/runs/{id}/approve-all`、`POST /api/runs/{id}/signoff` |
 | AI 调用审计 | `llm_call_logs` 和结果页右侧审计面板 |
-| 审计脱敏 | `app/llm.py` 在 LLM payload 落库前遮蔽常见敏感值 |
+| LLM 审计脱敏 | `app/llm.py` 在 LLM payload 落库前遮蔽常见敏感值 |
+| 工单回写审计脱敏 | `app/integrations.py` 保持真实 Webhook 发送，同时在日志/API 中遮蔽 URL 查询密钥、Basic Auth 密码和外部响应体敏感字段 |
 | Markdown/PDF 导出 | `/cases/{id}/export`、`/cases/{id}/export.pdf` |
 | 部署健康检查 | `/healthz`、`/ops`、`/api/system/status` |
 | 演示稳定性 | `/demo`、`/demo/complete`、`scripts/smoke_check.ps1` |

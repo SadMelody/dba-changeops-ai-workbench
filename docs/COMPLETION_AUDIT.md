@@ -4,7 +4,7 @@
 
 ## 审计结论
 
-当前仓库已经具备本地完整演示闭环：中文 Web 工作台、案例创建、外部工单导入、工单回写 payload、ITSM Webhook 主动回写、回写日志和失败重试、AI 分析、离线兜底、AI 调用审计、人工编辑、版本记录、差异查看、交付确认、整包签收、Markdown/PDF 导出、样例交付包、截图、部署配置、测试、离线 DB2 场景评测、冒烟验收、发布就绪审计和中文界面审计。
+当前仓库已经具备本地完整演示闭环：中文 Web 工作台、案例创建、外部工单导入、工单回写 payload、ITSM Webhook 主动回写、回写日志、失败重试、Webhook 审计脱敏、AI 分析、离线兜底、AI 调用审计、人工编辑、版本记录、差异查看、交付确认、整包签收、Markdown/PDF 导出、样例交付包、截图、部署配置、测试、离线 DB2 场景评测、冒烟验收、发布就绪审计和中文界面审计。
 
 仍需外部补齐的项：
 
@@ -20,6 +20,7 @@
 | 工单回写 payload | `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload`、`build_work_order_writeback_payload` | 工单回写测试 |
 | ITSM Webhook 回写 | `POST /api/integrations/work-orders/runs/{run_id}/writeback`、`dispatch_work_order_writeback`、`ITSM_WEBHOOK_URL` | Webhook 回写测试 |
 | 工单回写日志和重试 | `work_order_writeback_logs`、`GET /api/integrations/work-orders/runs/{run_id}/writebacks`、`POST /api/integrations/work-orders/writebacks/{log_id}/retry` | 回写失败与重试测试 |
+| Webhook 审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload`、`work_order_writeback_logs` | URL 密钥、Basic Auth 密码和外部响应体脱敏测试 |
 | 案例列表和详情页 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 工作流测试、首页测试、中文界面审计 |
 | AI 分析触发 | `POST /api/cases/{id}/analyze`、`POST /cases/{id}/analyze` | 工作流测试、冒烟脚本 |
 | 历史分析记录 | `GET /api/cases/{id}/runs`、`analysis_runs` | 工作流测试 |
@@ -76,7 +77,7 @@
 | `analysis_runs` | 已实现 | 保存每次 AI 分析、模型状态、摘要、错误信息和签收信息。 |
 | `artifacts` | 已实现 | 保存 6 类当前交付物及确认状态。 |
 | `llm_call_logs` | 已实现 | 保存模型请求/响应审计、耗时、状态和失败原因。 |
-| `work_order_writeback_logs` | 已实现 | 保存工单 Webhook 回写 attempt、请求响应、状态和失败原因。 |
+| `work_order_writeback_logs` | 已实现 | 保存工单 Webhook 回写 attempt、请求 payload、脱敏后的响应 payload、状态和失败原因。 |
 | `demo_fixtures` | 已实现 | 保存内置合成演示案例载荷。 |
 
 额外补充表：
@@ -95,7 +96,8 @@
 | 无 Key 兜底 | `fixture_analysis`、`LLMClient.analyze_change` | 兜底测试 |
 | 调用失败兜底 | `LLMClient.analyze_change` | 超时兜底测试 |
 | 结构化输出 | `normalize_response`、`ARTIFACT_TITLES` | 结构化输出测试 |
-| 审计脱敏 | `sanitize_audit_payload` | 脱敏测试 |
+| LLM 审计脱敏 | `sanitize_audit_payload` | LLM payload 脱敏测试 |
+| 工单回写审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload` | Webhook URL 查询密钥、Basic Auth 密码和外部响应体脱敏测试 |
 | 离线场景评测 | `evaluate_demo_fixtures`、`SCENARIO_MARKERS` | 11 个 DB2 场景结构和关键标记评测 |
 
 ## 文档和交付资产
