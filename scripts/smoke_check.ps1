@@ -61,8 +61,11 @@ $result = [ordered]@{
     total_cases = $status.summary.total_cases
     llm_mode = $status.llm_mode_label
     demo_complete = $false
+    run_detail_api = $false
     export_markdown = $false
     export_pdf = $false
+    run_export_markdown = $false
+    run_export_pdf = $false
 }
 
 if ($CompleteDemo) {
@@ -80,9 +83,42 @@ if ($CompleteDemo) {
     Assert-Contains $runPage.Content "已签收" "run page"
 
     $caseId = ($location -split "/")[2]
+    $runId = ($location -split "/")[4]
+    if (-not $caseId -or -not $runId) {
+        throw "Unable to parse case id and run id from Location: $location"
+    }
+
+    $runDetail = Invoke-RestMethod -Uri (Join-Url $BaseUrl "/api/runs/$runId")
+    if ([int]$runDetail.id -ne [int]$runId) {
+        throw "Run detail API returned unexpected id: $($runDetail.id)"
+    }
+    if ([int]$runDetail.case.id -ne [int]$caseId) {
+        throw "Run detail API returned unexpected case id: $($runDetail.case.id)"
+    }
+    if (-not $runDetail.delivery.is_complete -or -not $runDetail.signoff.is_signed) {
+        throw "Run detail API should expose a complete signed delivery package"
+    }
+    if (@($runDetail.artifacts).Count -lt 6) {
+        throw "Run detail API should include at least 6 artifacts"
+    }
+    if (@($runDetail.llm_logs).Count -lt 1) {
+        throw "Run detail API should include LLM audit logs"
+    }
+    $expectedMarkdownUrl = "/cases/$caseId/runs/$runId/export"
+    $expectedPdfUrl = "/cases/$caseId/runs/$runId/export.pdf"
+    if ($runDetail.export_urls.markdown -ne $expectedMarkdownUrl -or
+        $runDetail.export_urls.pdf -ne $expectedPdfUrl) {
+        throw "Run detail API should expose run-scoped export URLs"
+    }
+
     $markdown = Invoke-WebRequest -Uri (Join-Url $BaseUrl "/cases/$caseId/export")
     Assert-Contains $markdown.Content "DBA ChangeOps AI 变更交付包" "markdown export"
     Assert-Contains $markdown.Content "签收状态：已签收" "markdown export"
+
+    $runMarkdown = Invoke-WebRequest -Uri (Join-Url $BaseUrl $expectedMarkdownUrl)
+    Assert-Contains $runMarkdown.Content "DBA ChangeOps AI 变更交付包" "run markdown export"
+    Assert-Contains $runMarkdown.Content ("CHANGEOPS-{0:D4}-RUN-{1:D4}" -f [int]$caseId, [int]$runId) "run markdown export"
+    Assert-Contains $runMarkdown.Content "签收状态：已签收" "run markdown export"
 
     $pdfPath = Join-Path ([System.IO.Path]::GetTempPath()) "changeops-smoke-export.pdf"
     Invoke-WebRequest -Uri (Join-Url $BaseUrl "/cases/$caseId/export.pdf") -OutFile $pdfPath
@@ -96,9 +132,24 @@ if ($CompleteDemo) {
     }
     Remove-Item -LiteralPath $pdfPath -Force
 
+    $runPdfPath = Join-Path ([System.IO.Path]::GetTempPath()) "changeops-smoke-run-export.pdf"
+    Invoke-WebRequest -Uri (Join-Url $BaseUrl $expectedPdfUrl) -OutFile $runPdfPath
+    $runPdfBytes = [System.IO.File]::ReadAllBytes($runPdfPath)
+    if ($runPdfBytes.Length -lt 5) {
+        throw "Run-scoped PDF export is unexpectedly small"
+    }
+    $runPdfHeader = [System.Text.Encoding]::ASCII.GetString($runPdfBytes, 0, 4)
+    if ($runPdfHeader -ne "%PDF") {
+        throw "Run-scoped PDF export did not start with %PDF"
+    }
+    Remove-Item -LiteralPath $runPdfPath -Force
+
     $result.demo_complete = $true
+    $result.run_detail_api = $true
     $result.export_markdown = $true
     $result.export_pdf = $true
+    $result.run_export_markdown = $true
+    $result.run_export_pdf = $true
 }
 
 [pscustomobject]$result | ConvertTo-Json -Compress

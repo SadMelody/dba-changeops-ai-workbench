@@ -100,6 +100,8 @@ LLM_MODEL=qwen-plus
 | --- | --- |
 | 线上演示 | `https://.../healthz` 返回 `status: ok` 和 `database: ok`。 |
 | 演示闭环 | `scripts/verify_online_release.ps1 -CompleteDemo` 通过。 |
+| 运行详情 API | 冒烟脚本确认 `GET /api/runs/{run_id}` 返回交付物、签收状态、LLM 审计和固定导出地址。 |
+| 固定交付导出 | 冒烟脚本下载 run 级 Markdown/PDF，确认某一次运行可以稳定归档。 |
 | 视频链接 | 无需登录，脚本访问不返回 4xx/5xx。 |
 | README | 顶部包含真实在线演示地址和备用视频链接。 |
 | 发布审计 | `scripts/delivery_status.ps1 -CompleteDemo -Strict` 返回 `ready: true`。 |
@@ -118,6 +120,7 @@ LLM_MODEL=qwen-plus
 - `/ops` 显示数据库连接正常、运行状态可用。
 - `/healthz` 返回 `status: ok` 和 `database: ok`。
 - Markdown 和 PDF 导出可以下载。
+- 运行详情页的 Markdown/PDF 导出地址包含 `/runs/{run_id}/`，用于固定归档当前交付包。
 - LLM 审计面板能显示真实调用或离线兜底状态。
 
 ## README 发布口径
