@@ -305,6 +305,7 @@ artifacts/samples/     可直接展示的样例交付包
 扩展文档：
 
 - [项目边界与 Agent 协作规则](AGENTS.md)
+- [安全边界](SECURITY.md)
 - [一页式作品简介](docs/PORTFOLIO_BRIEF.md)
 - [需求覆盖审计](docs/COMPLETION_AUDIT.md)
 - [架构说明](docs/ARCHITECTURE.md)

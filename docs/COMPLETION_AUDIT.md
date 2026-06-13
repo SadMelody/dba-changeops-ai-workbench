@@ -126,6 +126,7 @@
 | 样例 PDF | `artifacts/samples/changeops-demo-delivery.pdf` |
 | 产品截图 | `artifacts/screenshots/home.png`、`artifacts/screenshots/demo.png`、`artifacts/screenshots/run-detail.png` |
 | 项目边界与 Agent 协作规则 | `AGENTS.md` |
+| 安全边界 | `SECURITY.md` |
 | 面试交付压缩包脚本 | `scripts/package_release.ps1` |
 | README 发布链接回填脚本 | `scripts/update_release_links.ps1` |
 | 公开交付总审计脚本 | `scripts/public_delivery_audit.ps1` |

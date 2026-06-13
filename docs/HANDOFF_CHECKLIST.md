@@ -19,6 +19,7 @@ DBA ChangeOps AI 工作台已经具备本地完整演示闭环：创建案例、
 - 运行状态页：`http://127.0.0.1:8000/ops`
 - 健康检查：`http://127.0.0.1:8000/healthz`
 - 状态 API：`http://127.0.0.1:8000/api/system/status`
+- 安全边界：`SECURITY.md`
 - 一页式作品简介：`docs/PORTFOLIO_BRIEF.md`
 - 需求覆盖审计：`docs/COMPLETION_AUDIT.md`
 - API 契约说明：`docs/API.md`

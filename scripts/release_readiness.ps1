@@ -78,6 +78,7 @@ function Get-ReleaseResidues {
 
 $requiredFiles = @(
     "AGENTS.md",
+    "SECURITY.md",
     "README.md",
     "requirements.txt",
     "pyproject.toml",
@@ -184,6 +185,7 @@ try {
                 Add-Check "package:manifest-clean" ($blockedFiles.Count -eq 0) ("package manifest should exclude local artifacts: " + ($blockedFiles -join ", "))
                 $packagedPaths = @($manifest.files | Select-Object -ExpandProperty path)
                 Add-Check "package:manifest-agents" ($packagedPaths -contains "AGENTS.md") "package manifest should include project agent boundary"
+                Add-Check "package:manifest-security" ($packagedPaths -contains "SECURITY.md") "package manifest should include security policy"
                 Add-Check "package:file-count" ([int]$manifest.file_count -gt 0) "release package should contain delivery files"
             }
         }
