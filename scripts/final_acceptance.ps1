@@ -7,12 +7,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $acceptanceRoot = Join-Path $TempRoot "changeops-acceptance"
 $acceptanceTemp = Join-Path $acceptanceRoot ([System.Guid]::NewGuid().ToString("n"))
 $pytestTemp = Join-Path $acceptanceTemp "pytest"
 $oldTemp = $env:TEMP
 $oldTmp = $env:TMP
+$oldDatabaseUrl = $env:DATABASE_URL
 
 function Write-Step {
     param([string]$Message)
@@ -44,6 +50,15 @@ function Clear-AcceptanceTemp {
     }
 }
 
+function Restore-DatabaseUrl {
+    if ($null -eq $oldDatabaseUrl) {
+        Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:DATABASE_URL = $oldDatabaseUrl
+    }
+}
+
 try {
     Clear-AcceptanceTemp
     New-Item -ItemType Directory -Force -Path $acceptanceTemp | Out-Null
@@ -53,6 +68,25 @@ try {
     if (-not $SkipTests) {
         Invoke-Checked "运行自动化测试" {
             & $PythonCommand -B -m pytest -q -p no:cacheprovider --basetemp $pytestTemp
+        }
+    }
+
+    Invoke-Checked "运行离线 DB2 场景评测" {
+        & $PythonCommand -B -m app.evaluation
+    }
+
+    Invoke-Checked "验证 Alembic 迁移链" {
+        $migrationDbPath = Join-Path $acceptanceTemp "alembic-upgrade-check.db"
+        try {
+            $migrationDbUrl = "sqlite:///" + ($migrationDbPath -replace "\\", "/")
+            $env:DATABASE_URL = $migrationDbUrl
+            & $PythonCommand -B -m alembic upgrade head
+        }
+        finally {
+            Restore-DatabaseUrl
+            if (Test-Path -LiteralPath $migrationDbPath) {
+                Remove-Item -LiteralPath $migrationDbPath -Force
+            }
         }
     }
 
@@ -91,10 +125,11 @@ try {
     }
 
     Write-Host ""
-    Write-Host "最终验收通过：测试、健康检查、运行状态、演示闭环、导出能力、中文界面、部署配置和交付打包均已确认。"
+    Write-Host "最终验收通过：测试、离线评测、迁移链、健康检查、运行状态、演示闭环、导出能力、中文界面、部署配置和交付打包均已确认。"
 }
 finally {
     $env:TEMP = $oldTemp
     $env:TMP = $oldTmp
+    Restore-DatabaseUrl
     Clear-AcceptanceTemp
 }

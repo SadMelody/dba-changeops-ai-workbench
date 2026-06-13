@@ -4,7 +4,7 @@
 
 ## 审计结论
 
-当前仓库已经具备本地完整演示闭环：中文 Web 工作台、案例创建、AI 分析、离线兜底、AI 调用审计、人工编辑、版本记录、差异查看、交付确认、整包签收、Markdown/PDF 导出、样例交付包、截图、部署配置、测试、冒烟验收、发布就绪审计和中文界面审计。
+当前仓库已经具备本地完整演示闭环：中文 Web 工作台、案例创建、外部工单导入、工单回写 payload、ITSM Webhook 主动回写、回写日志和失败重试、AI 分析、离线兜底、AI 调用审计、人工编辑、版本记录、差异查看、交付确认、整包签收、Markdown/PDF 导出、样例交付包、截图、部署配置、测试、离线 DB2 场景评测、冒烟验收、发布就绪审计和中文界面审计。
 
 仍需外部补齐的项：
 
@@ -16,6 +16,10 @@
 | 计划能力 | 当前证据 | 验收方式 |
 | --- | --- | --- |
 | 创建变更案例 | `POST /api/cases`、`POST /cases`、`app/templates/new_case.html` | `tests/test_workflow.py` |
+| 外部工单导入 | `POST /api/integrations/work-orders/import`、`app/integrations.py` | 工单导入测试 |
+| 工单回写 payload | `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload`、`build_work_order_writeback_payload` | 工单回写测试 |
+| ITSM Webhook 回写 | `POST /api/integrations/work-orders/runs/{run_id}/writeback`、`dispatch_work_order_writeback`、`ITSM_WEBHOOK_URL` | Webhook 回写测试 |
+| 工单回写日志和重试 | `work_order_writeback_logs`、`GET /api/integrations/work-orders/runs/{run_id}/writebacks`、`POST /api/integrations/work-orders/writebacks/{log_id}/retry` | 回写失败与重试测试 |
 | 案例列表和详情页 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 工作流测试、首页测试、中文界面审计 |
 | AI 分析触发 | `POST /api/cases/{id}/analyze`、`POST /cases/{id}/analyze` | 工作流测试、冒烟脚本 |
 | 历史分析记录 | `GET /api/cases/{id}/runs`、`analysis_runs` | 工作流测试 |
@@ -36,6 +40,7 @@
 | PDF 导出 | `/cases/{id}/export.pdf` | 冒烟脚本、工作流测试 |
 | 一键演示闭环 | `/demo/start`、`/demo/complete` | 演示闭环测试 |
 | 运行状态页 | `/ops`、`/api/system/status` | 运行状态测试、冒烟脚本 |
+| 离线场景评测 | `app/evaluation.py`、`scripts/evaluate_demo_fixtures.ps1` | 评测测试、最终验收脚本 |
 
 ## 接口覆盖
 
@@ -44,6 +49,11 @@
 | `POST /api/cases` | 已实现 | `app/main.py` |
 | `GET /api/cases` | 已实现 | `app/main.py` |
 | `GET /api/cases/{id}` | 已实现 | `app/main.py` |
+| `POST /api/integrations/work-orders/import` | 已实现 | `app/main.py`、`app/integrations.py` |
+| `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload` | 已实现 | `app/main.py`、`app/integrations.py` |
+| `POST /api/integrations/work-orders/runs/{run_id}/writeback` | 已实现 | `app/main.py`、`app/integrations.py` |
+| `GET /api/integrations/work-orders/runs/{run_id}/writebacks` | 已实现 | `app/main.py`、`work_order_writeback_logs` |
+| `POST /api/integrations/work-orders/writebacks/{log_id}/retry` | 已实现 | `app/main.py`、`work_order_writeback_logs` |
 | `POST /api/cases/{id}/analyze` | 已实现 | `app/main.py` |
 | `GET /api/cases/{id}/runs` | 已实现 | `app/main.py` |
 | `POST /api/artifacts/{id}/approve` | 已实现 | `app/main.py` |
@@ -66,6 +76,7 @@
 | `analysis_runs` | 已实现 | 保存每次 AI 分析、模型状态、摘要、错误信息和签收信息。 |
 | `artifacts` | 已实现 | 保存 6 类当前交付物及确认状态。 |
 | `llm_call_logs` | 已实现 | 保存模型请求/响应审计、耗时、状态和失败原因。 |
+| `work_order_writeback_logs` | 已实现 | 保存工单 Webhook 回写 attempt、请求响应、状态和失败原因。 |
 | `demo_fixtures` | 已实现 | 保存内置合成演示案例载荷。 |
 
 额外补充表：
@@ -85,6 +96,7 @@
 | 调用失败兜底 | `LLMClient.analyze_change` | 超时兜底测试 |
 | 结构化输出 | `normalize_response`、`ARTIFACT_TITLES` | 结构化输出测试 |
 | 审计脱敏 | `sanitize_audit_payload` | 脱敏测试 |
+| 离线场景评测 | `evaluate_demo_fixtures`、`SCENARIO_MARKERS` | 11 个 DB2 场景结构和关键标记评测 |
 
 ## 文档和交付资产
 
@@ -111,10 +123,12 @@
 | 样例 Markdown | `artifacts/samples/changeops-demo-delivery.md` |
 | 样例 PDF | `artifacts/samples/changeops-demo-delivery.pdf` |
 | 产品截图 | `artifacts/screenshots/home.png`、`artifacts/screenshots/demo.png`、`artifacts/screenshots/run-detail.png` |
+| 项目边界与 Agent 协作规则 | `AGENTS.md` |
 | 面试交付压缩包脚本 | `scripts/package_release.ps1` |
 | README 发布链接回填脚本 | `scripts/update_release_links.ps1` |
 | 公开交付总审计脚本 | `scripts/public_delivery_audit.ps1` |
 | 当前交付状态汇总脚本 | `scripts/delivery_status.ps1` |
+| 离线 DB2 场景评测脚本 | `scripts/evaluate_demo_fixtures.ps1` |
 
 ## 验收命令
 
@@ -124,7 +138,7 @@
 .\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-该脚本会串联测试、端到端冒烟、中文界面审计、部署配置审计和交付打包检查。
+该脚本会串联测试、离线 DB2 场景评测、Alembic 迁移链、端到端冒烟、中文界面审计、部署配置审计和交付打包检查。
 
 发布前文件和运行状态审计：
 

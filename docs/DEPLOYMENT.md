@@ -83,11 +83,15 @@ APP_ENV=production
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_API_KEY=your-api-key
 LLM_MODEL=qwen-plus
+ITSM_WEBHOOK_URL=https://itsm.example.test/webhook/changeops
+ITSM_WEBHOOK_TOKEN=your-webhook-token
 ```
 
 说明：
 
 - `LLM_API_KEY` 可以为空，系统会进入离线兜底模式。
+- `ITSM_WEBHOOK_URL` 可以为空，系统仍可生成工单回写 payload；配置后才会主动发送 Webhook，并记录发送/失败重试 attempt。
+- `ITSM_WEBHOOK_TOKEN` 可以为空；配置后主动回写请求会带 `Authorization: Bearer <token>`。
 - 如果使用 Supabase/Neon/Railway 的 PostgreSQL，优先复制官方提供的连接串，再确认协议前缀是 `postgresql+psycopg://`。
 - 如果平台提供的是 `postgres://` 或 `postgresql://`，需要按 SQLAlchemy/psycopg 连接格式调整。
 
@@ -102,8 +106,9 @@ LLM_MODEL=qwen-plus
 3. 如果使用 Blueprint，选择仓库中的 `render.yaml`。
 4. 配置 `DATABASE_URL`。
 5. 如需真实模型，配置 `LLM_API_KEY`。
-6. 部署后打开服务地址。
-7. 检查 `/healthz` 和 `/ops`。
+6. 如需真实工单回写，配置 `ITSM_WEBHOOK_URL` 和 `ITSM_WEBHOOK_TOKEN`。
+7. 部署后打开服务地址。
+8. 检查 `/healthz` 和 `/ops`。
 
 手动配置时：
 
@@ -144,10 +149,13 @@ fly secrets set DATABASE_URL="postgresql+psycopg://..."
 fly secrets set LLM_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
 fly secrets set LLM_API_KEY="your-api-key"
 fly secrets set LLM_MODEL="qwen-plus"
+fly secrets set ITSM_WEBHOOK_URL="https://itsm.example.test/webhook/changeops"
+fly secrets set ITSM_WEBHOOK_TOKEN="your-webhook-token"
 fly deploy
 ```
 
 如果只做产品试运行，也可以先不设置 `LLM_API_KEY`，保留离线兜底。
+如果暂时没有真实工单系统，也可以先不设置 `ITSM_WEBHOOK_URL`，只展示回写 payload。
 
 ## 部署后验收
 

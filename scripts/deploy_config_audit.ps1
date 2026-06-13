@@ -76,6 +76,8 @@ Assert-Contains "render:database-url" $render "DATABASE_URL" "Render config shou
 Assert-Contains "render:llm-base-url" $render "LLM_BASE_URL" "Render config should declare LLM base URL"
 Assert-Contains "render:llm-api-key" $render "LLM_API_KEY" "Render config should declare LLM API key"
 Assert-Contains "render:llm-model" $render "LLM_MODEL" "Render config should declare LLM model"
+Assert-Contains "render:itsm-webhook-url" $render "ITSM_WEBHOOK_URL" "Render config should declare optional ITSM webhook URL"
+Assert-Contains "render:itsm-webhook-token" $render "ITSM_WEBHOOK_TOKEN" "Render config should declare optional ITSM webhook token"
 
 Assert-Contains "railway:schema" $railway "railway.schema.json" "Railway config should declare schema"
 Assert-Contains "railway:nixpacks" $railway '"builder": "NIXPACKS"' "Railway config should use Nixpacks"
@@ -100,6 +102,8 @@ Assert-Contains "env:database-url" $envExample "DATABASE_URL" ".env.example shou
 Assert-Contains "env:llm-base-url" $envExample "LLM_BASE_URL" ".env.example should document LLM_BASE_URL"
 Assert-Contains "env:llm-api-key" $envExample "LLM_API_KEY" ".env.example should document LLM_API_KEY"
 Assert-Contains "env:llm-model" $envExample "LLM_MODEL" ".env.example should document LLM_MODEL"
+Assert-Contains "env:itsm-webhook-url" $envExample "ITSM_WEBHOOK_URL" ".env.example should document ITSM_WEBHOOK_URL"
+Assert-Contains "env:itsm-webhook-token" $envExample "ITSM_WEBHOOK_TOKEN" ".env.example should document ITSM_WEBHOOK_TOKEN"
 
 Assert-Contains "docs:render" $deploymentDoc "Render 部署" "deployment docs should explain Render"
 Assert-Contains "docs:railway" $deploymentDoc "Railway 部署" "deployment docs should explain Railway"

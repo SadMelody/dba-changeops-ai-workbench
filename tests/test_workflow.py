@@ -13,6 +13,8 @@ from fastapi.testclient import TestClient
 from app.config import load_dotenv
 from app.database import Base, SessionLocal, engine
 from app.demo_data import ARTIFACT_TITLES, DEMO_CASES, fixture_analysis
+from app.integrations import dispatch_work_order_writeback
+from app.evaluation import SCENARIO_MARKERS, evaluate_demo_fixtures
 from app.llm import LLMClient, normalize_response, sanitize_audit_payload
 from app.main import app
 from app.models import Artifact, ArtifactRevision, Case
@@ -84,6 +86,33 @@ class FakeHTTPClient:
         if self.error:
             raise self.error
         assert self.response is not None
+        return self.response
+
+
+class FakeWebhookResponse:
+    def __init__(self, payload: dict | None = None, status_code: int = 202) -> None:
+        self.payload = payload or {"accepted": True}
+        self.status_code = status_code
+        self.text = json.dumps(self.payload, ensure_ascii=False)
+
+    def json(self) -> dict:
+        return self.payload
+
+
+class FakeWebhookClient:
+    last_request: dict | None = None
+
+    def __init__(self, response: FakeWebhookResponse) -> None:
+        self.response = response
+
+    def __enter__(self) -> "FakeWebhookClient":
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        return None
+
+    def post(self, url: str, headers: dict, json: dict) -> FakeWebhookResponse:
+        FakeWebhookClient.last_request = {"url": url, "headers": headers, "json": json}
         return self.response
 
 
@@ -249,28 +278,27 @@ def test_llm_client_falls_back_when_provider_times_out() -> None:
 
 
 def test_fixture_analysis_uses_db2_scenario_specific_templates() -> None:
-    expected_markers = {
-        "db2-index-online": ["EXPLAIN", "DROP INDEX", "SYSCAT.INDEXES"],
-        "db2-add-column": ["package rebind", "CHANNEL_CD", "SYSIBM.SYSCOLUMNS"],
-        "db2-data-fix": ["备份表", "影响行数", "BAK_CUSTOMER_FLAG_20260602"],
-        "db2-reorg": ["SNAPUTIL_PROGRESS", "临时表空间", "06:00"],
-        "db2-lock-incident": ["应急指挥", "MON_CURRENT_UOW", "未经批准没有执行 kill session"],
-        "db2-hadr-takeover": ["HADR_STATE=PEER", "TAKEOVER HADR", "db2pd -db COREDB -hadr"],
-        "db2-tablespace-expand": ["TS_TXN_DATA", "CONTAINER_UTILIZATION", "文件系统空间"],
-        "db2-privilege-change": ["SYSCAT.TABAUTH", "BI_REPORT", "INSERT/UPDATE/DELETE 权限已移除"],
-        "db2-backup-restore": ["RESTORE DATABASE", "ROLLFORWARD", "COREDB_DR"],
-        "db2-sql-replay": ["db2batch", "replay_before.out", "访问计划"],
-        "db2-partition-maintenance": ["SYSCAT.DATAPARTITIONS", "DETACH PARTITION", "TXN_EVENT_2025Q4_ARCHIVE"],
-    }
-
     for fixture in DEMO_CASES:
         case = Case(**{key: value for key, value in fixture.items() if hasattr(Case, key)})
         result = fixture_analysis(case)
         artifact_text = "\n".join(result["artifacts"].values())
 
         assert set(result["artifacts"]) == set(ARTIFACT_TITLES)
-        for marker in expected_markers[fixture["slug"]]:
+        for marker in SCENARIO_MARKERS[fixture["slug"]]:
             assert marker in artifact_text
+
+
+def test_offline_fixture_evaluation_reports_all_db2_scenarios_as_passing() -> None:
+    result = evaluate_demo_fixtures()
+
+    assert result["suite"] == "offline-db2-fixture-baseline"
+    assert result["total_cases"] == len(DEMO_CASES)
+    assert result["passed_cases"] == len(DEMO_CASES)
+    assert result["failed_cases"] == []
+    assert result["pass_rate"] == 1.0
+    assert result["artifact_types"] == list(ARTIFACT_TITLES)
+    assert set(SCENARIO_MARKERS) == {fixture["slug"] for fixture in DEMO_CASES}
+    assert all(case_result["passed"] for case_result in result["cases"])
 
 
 def test_create_analyze_approve_and_export_workflow() -> None:
@@ -552,6 +580,403 @@ def test_create_case_api_rejects_invalid_json_and_field_boundaries() -> None:
     assert "标题不能为空" in detail
     assert "优先级只能是 P1、P2、P3 或 P4" in detail
     assert "目标系统不能超过 120 个字符" in detail
+
+
+def test_work_order_import_maps_external_payload_and_can_analyze() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "ticket_id": "CHG-20260613-001",
+            "ticket_url": "https://itsm.example.test/changes/CHG-20260613-001",
+            "summary": "DB2 月结批处理 SQL 回放验证",
+            "database_type": "DB2 LUW",
+            "system": "月结批处理平台",
+            "category": "SQL 回放验证",
+            "priority": "P1",
+            "env": "预生产",
+            "requester": "批处理 DBA",
+            "approval_owner": "变更经理",
+            "window": "2026-06-13 22:00-23:00",
+            "description": "月结前需要回放核心 SQL，确认访问计划和耗时变化。",
+            "operation_commands": [
+                "db2batch -d COREDB -f month_end.sql -o r 5 p 3 -r replay_before.out",
+                "RUNSTATS ON TABLE BATCH.MONTH_END WITH DISTRIBUTION AND DETAILED INDEXES ALL;",
+            ],
+            "affected_objects": "BATCH.MONTH_END、BATCH.MONTH_END_ITEM",
+            "impact_scope": "覆盖月结批处理关键查询，不直接修改生产数据。",
+            "risk_constraints": "只能在预生产执行，输出需要归档到变更单。",
+            "rollback_requirement": "如访问计划退化，回退 RUNSTATS 并保留优化前输出。",
+            "labels": ["DB2", "preprod", "replay"],
+            "metadata": {
+                "requested_by": "ops-bot",
+                "source": "itsm",
+            },
+            "run_analysis": True,
+        },
+    )
+
+    assert import_response.status_code == 200
+    payload = import_response.json()
+    assert payload["message"] == "外部工单已导入并生成交付方案"
+    assert payload["source"]["external_id"] == "CHG-20260613-001"
+    assert payload["source"]["labels"] == ["DB2", "preprod", "replay"]
+    assert payload["case"]["title"] == "DB2 月结批处理 SQL 回放验证"
+    assert payload["case"]["latest_run"]["id"] == payload["run"]["id"]
+    assert payload["run"]["status"] == "completed"
+    assert payload["run"]["delivery"]["label"] == "0/6 已确认"
+    assert payload["analyze_url"] == f"/api/cases/{payload['case']['id']}/analyze"
+
+    detail_response = client.get(f"/api/cases/{payload['case']['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert "外部工单：CHG-20260613-001" in detail["business_context"]
+    assert "工单链接：https://itsm.example.test/changes/CHG-20260613-001" in detail["business_context"]
+    assert "工单标签：DB2, preprod, replay" in detail["business_context"]
+    assert "- requested_by: ops-bot" in detail["business_context"]
+    assert "db2batch -d COREDB" in detail["source_sql"]
+    assert "RUNSTATS ON TABLE BATCH.MONTH_END" in detail["source_sql"]
+    assert "BATCH.MONTH_END" in detail["schema_notes"]
+    assert "不直接修改生产数据" in detail["schema_notes"]
+    assert "只能在预生产执行" in detail["constraints"]
+    assert "如访问计划退化" in detail["constraints"]
+
+    run_detail_response = client.get(f"/api/runs/{payload['run']['id']}")
+    assert run_detail_response.status_code == 200
+    artifact_text = "\n".join(artifact["content"] for artifact in run_detail_response.json()["artifacts"])
+    assert "db2batch" in artifact_text
+    assert "访问计划" in artifact_text
+
+
+def test_work_order_import_rejects_missing_external_id() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/integrations/work-orders/import",
+        json={"summary": "缺少外部工单号的变更"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "外部工单号不能为空"
+
+
+def test_work_order_writeback_payload_tracks_delivery_and_signoff_state() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260613-009",
+            "external_url": "https://itsm.example.test/changes/CHG-20260613-009",
+            "title": "DB2 分区归档维护",
+            "database_type": "DB2 LUW",
+            "target_system": "交易流水平台",
+            "change_type": "分区维护",
+            "labels": ["DB2", "archive"],
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    preview_response = client.get(
+        f"/api/integrations/work-orders/runs/{run_id}/writeback-payload"
+    )
+    assert preview_response.status_code == 200
+    preview = preview_response.json()
+    assert preview["action"] == "work_order_delivery_writeback"
+    assert preview["source"]["external_id"] == "CHG-20260613-009"
+    assert preview["source"]["external_url"] == "https://itsm.example.test/changes/CHG-20260613-009"
+    assert preview["source"]["labels"] == ["DB2", "archive"]
+    assert preview["target_status"] == "delivery_generated"
+    assert preview["delivery"]["label"] == "0/6 已确认"
+    assert preview["signoff"]["label"] == "待签收"
+    assert preview["exports"]["markdown"] == f"http://testserver/cases/1/runs/{run_id}/export"
+    assert preview["exports"]["pdf"] == f"http://testserver/cases/1/runs/{run_id}/export.pdf"
+    assert "DBA ChangeOps 已生成交付包" in preview["comment_markdown"]
+    assert "待确认项" in preview["comment_markdown"]
+    assert len(preview["artifacts"]) == 6
+
+    approve_response = client.post(f"/api/runs/{run_id}/approve-all")
+    assert approve_response.status_code == 200
+    signoff_response = client.post(
+        f"/api/runs/{run_id}/signoff",
+        json={"signed_by": "变更经理", "note": "已回写工单。"},
+    )
+    assert signoff_response.status_code == 200
+
+    signed_response = client.get(
+        f"/api/integrations/work-orders/runs/{run_id}/writeback-payload"
+    )
+    assert signed_response.status_code == 200
+    signed = signed_response.json()
+    assert signed["target_status"] == "signed"
+    assert signed["delivery"]["label"] == "6/6 已确认"
+    assert signed["signoff"]["label"] == "已签收"
+    assert signed["signoff"]["signed_by"] == "变更经理"
+    assert "签收人：变更经理" in signed["comment_markdown"]
+
+
+def test_work_order_writeback_payload_requires_imported_work_order_source() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    create_response = client.post(
+        "/api/cases",
+        json={
+            "title": "普通手工案例",
+            "db_type": "DB2 LUW",
+            "target_system": "核心系统",
+            "change_type": "索引变更",
+            "priority": "P2",
+        },
+    )
+    assert create_response.status_code == 200
+    case_id = create_response.json()["id"]
+    analyze_response = client.post(f"/api/cases/{case_id}/analyze")
+    assert analyze_response.status_code == 200
+    run_id = analyze_response.json()["run_id"]
+
+    response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writeback-payload")
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "当前分析运行没有关联外部工单"
+
+
+def test_dispatch_work_order_writeback_sends_configured_webhook_request() -> None:
+    payload = {
+        "action": "work_order_delivery_writeback",
+        "source": {"external_id": "CHG-20260614-001"},
+        "target_status": "signed",
+    }
+    settings = SimpleNamespace(
+        itsm_webhook_url="https://itsm.example.test/webhook/changeops",
+        itsm_webhook_token="secret-token",
+    )
+
+    def factory(timeout: float) -> FakeWebhookClient:
+        assert timeout == 3
+        return FakeWebhookClient(FakeWebhookResponse({"received": True}, status_code=202))
+
+    result = dispatch_work_order_writeback(
+        payload,
+        settings,
+        http_client_factory=factory,
+        timeout=3,
+    )
+
+    assert result == {
+        "configured": True,
+        "url": "https://itsm.example.test/webhook/changeops",
+        "status_code": 202,
+        "accepted": True,
+        "response": {"received": True},
+    }
+    assert FakeWebhookClient.last_request is not None
+    assert FakeWebhookClient.last_request["url"] == "https://itsm.example.test/webhook/changeops"
+    assert FakeWebhookClient.last_request["headers"]["Authorization"] == "Bearer secret-token"
+    assert FakeWebhookClient.last_request["headers"]["Content-Type"] == "application/json"
+    assert FakeWebhookClient.last_request["json"] == payload
+
+
+def test_dispatch_work_order_writeback_reports_webhook_http_failure() -> None:
+    payload = {"action": "work_order_delivery_writeback"}
+    settings = SimpleNamespace(
+        itsm_webhook_url="https://itsm.example.test/webhook/changeops",
+        itsm_webhook_token="",
+    )
+
+    def factory(timeout: float) -> FakeWebhookClient:
+        return FakeWebhookClient(FakeWebhookResponse({"error": "bad request"}, status_code=400))
+
+    try:
+        dispatch_work_order_writeback(payload, settings, http_client_factory=factory)
+    except RuntimeError as exc:
+        assert str(exc) == "ITSM Webhook 回写失败：HTTP 400"
+    else:
+        raise AssertionError("Expected RuntimeError for non-success webhook response")
+
+
+def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> None:
+    reset_db()
+    client = TestClient(app)
+    captured: dict[str, object] = {}
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260614-002",
+            "title": "DB2 权限收敛变更",
+            "database_type": "DB2 LUW",
+            "target_system": "报表平台",
+            "change_type": "权限调整",
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    def fake_dispatch(payload, settings):
+        captured["payload"] = payload
+        captured["settings"] = settings
+        return {
+            "configured": True,
+            "url": "https://itsm.example.test/webhook/changeops",
+            "status_code": 202,
+            "accepted": True,
+            "response": {"received": True},
+        }
+
+    monkeypatch.setattr("app.main.dispatch_work_order_writeback", fake_dispatch)
+    monkeypatch.setattr(
+        "app.main.get_settings",
+        lambda: SimpleNamespace(
+            itsm_webhook_url="https://itsm.example.test/webhook/changeops",
+            itsm_webhook_token="secret-token",
+        ),
+    )
+
+    response = client.post(f"/api/integrations/work-orders/runs/{run_id}/writeback")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["message"] == "外部工单回写已发送"
+    assert payload["webhook"]["status_code"] == 202
+    assert payload["log"]["status"] == "sent"
+    assert payload["log"]["status_label"] == "已发送"
+    assert payload["log"]["attempt_count"] == 1
+    assert payload["log"]["source_external_id"] == "CHG-20260614-002"
+    assert payload["log"]["target_status"] == "delivery_generated"
+    assert payload["log"]["response_payload"]["status_code"] == 202
+    assert payload["payload"]["source"]["external_id"] == "CHG-20260614-002"
+    assert payload["payload"]["exports"]["markdown"] == f"http://testserver/cases/1/runs/{run_id}/export"
+    assert captured["payload"] == payload["payload"]
+    assert captured["settings"].itsm_webhook_token == "secret-token"
+
+    logs_response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writebacks")
+    assert logs_response.status_code == 200
+    logs_payload = logs_response.json()
+    assert logs_payload["total"] == 1
+    assert logs_payload["writebacks"][0]["id"] == payload["log"]["id"]
+    assert logs_payload["writebacks"][0]["request_payload"] == payload["payload"]
+
+    run_detail_response = client.get(f"/api/runs/{run_id}")
+    assert run_detail_response.status_code == 200
+    assert run_detail_response.json()["writeback_logs"][0]["status"] == "sent"
+
+    retry_response = client.post(
+        f"/api/integrations/work-orders/writebacks/{payload['log']['id']}/retry"
+    )
+    assert retry_response.status_code == 409
+    assert retry_response.json()["detail"] == "只有失败的工单回写记录可以重试"
+
+
+def test_work_order_writeback_api_records_failure_and_retries(monkeypatch) -> None:
+    reset_db()
+    client = TestClient(app)
+    dispatch_calls: list[dict] = []
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260614-004",
+            "title": "DB2 慢查询索引修复",
+            "database_type": "DB2 LUW",
+            "target_system": "交易查询平台",
+            "change_type": "索引变更",
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    monkeypatch.setattr(
+        "app.main.get_settings",
+        lambda: SimpleNamespace(
+            itsm_webhook_url="https://itsm.example.test/webhook/changeops",
+            itsm_webhook_token="secret-token",
+        ),
+    )
+
+    def failing_dispatch(payload, settings):
+        dispatch_calls.append(payload)
+        raise RuntimeError("ITSM Webhook 回写失败：HTTP 503")
+
+    monkeypatch.setattr("app.main.dispatch_work_order_writeback", failing_dispatch)
+
+    failed_response = client.post(f"/api/integrations/work-orders/runs/{run_id}/writeback")
+
+    assert failed_response.status_code == 502
+    failed_detail = failed_response.json()["detail"]
+    assert failed_detail["message"] == "ITSM Webhook 回写失败：HTTP 503"
+    assert failed_detail["log"]["status"] == "failed"
+    assert failed_detail["log"]["attempt_count"] == 1
+    assert failed_detail["log"]["error_message"] == "ITSM Webhook 回写失败：HTTP 503"
+    failed_log_id = failed_detail["log"]["id"]
+
+    logs_response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writebacks")
+    assert logs_response.status_code == 200
+    assert logs_response.json()["writebacks"][0]["status"] == "failed"
+
+    def successful_dispatch(payload, settings):
+        dispatch_calls.append(payload)
+        return {
+            "configured": True,
+            "url": "https://itsm.example.test/webhook/changeops",
+            "status_code": 202,
+            "accepted": True,
+            "response": {"received": True},
+        }
+
+    monkeypatch.setattr("app.main.dispatch_work_order_writeback", successful_dispatch)
+
+    retry_response = client.post(
+        f"/api/integrations/work-orders/writebacks/{failed_log_id}/retry"
+    )
+
+    assert retry_response.status_code == 200
+    retry_payload = retry_response.json()
+    assert retry_payload["message"] == "外部工单回写已重试发送"
+    assert retry_payload["previous_log"]["id"] == failed_log_id
+    assert retry_payload["previous_log"]["status"] == "failed"
+    assert retry_payload["log"]["status"] == "sent"
+    assert retry_payload["log"]["attempt_count"] == 2
+    assert retry_payload["payload"]["source"]["external_id"] == "CHG-20260614-004"
+    assert len(dispatch_calls) == 2
+
+    final_logs_response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writebacks")
+    assert final_logs_response.status_code == 200
+    final_logs = final_logs_response.json()["writebacks"]
+    assert [log["status"] for log in final_logs] == ["sent", "failed"]
+    assert [log["attempt_count"] for log in final_logs] == [2, 1]
+
+
+def test_work_order_writeback_api_requires_configured_webhook() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260614-003",
+            "title": "DB2 备份恢复演练",
+            "database_type": "DB2 LUW",
+            "target_system": "灾备平台",
+            "change_type": "恢复演练",
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    response = client.post(f"/api/integrations/work-orders/runs/{run_id}/writeback")
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "ITSM_WEBHOOK_URL 未配置，无法主动回写工单"
 
 
 def test_cases_api_lists_and_returns_case_detail_with_latest_run() -> None:

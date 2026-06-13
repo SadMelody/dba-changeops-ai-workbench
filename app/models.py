@@ -67,6 +67,11 @@ class AnalysisRun(Base):
     llm_logs: Mapped[list["LLMCallLog"]] = relationship(
         back_populates="run", cascade="all, delete-orphan", order_by="LLMCallLog.id.desc()"
     )
+    writeback_logs: Mapped[list["WorkOrderWritebackLog"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="WorkOrderWritebackLog.id.desc()",
+    )
 
 
 class Artifact(Base):
@@ -125,6 +130,27 @@ class LLMCallLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     run: Mapped[AnalysisRun] = relationship(back_populates="llm_logs")
+
+
+class WorkOrderWritebackLog(Base):
+    __tablename__ = "work_order_writeback_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("analysis_runs.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending")
+    attempt_count: Mapped[int] = mapped_column(default=1)
+    source_external_id: Mapped[str] = mapped_column(String(120), default="")
+    target_status: Mapped[str] = mapped_column(String(64), default="")
+    webhook_url: Mapped[str] = mapped_column(String(500), default="")
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    response_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    run: Mapped[AnalysisRun] = relationship(back_populates="writeback_logs")
 
 
 class DemoFixture(Base):

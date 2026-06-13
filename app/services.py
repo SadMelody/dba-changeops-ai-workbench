@@ -11,7 +11,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.demo_data import ARTIFACT_TITLES, DEMO_CASES
 from app.llm import LLMClient
-from app.models import AnalysisRun, Artifact, ArtifactRevision, Case, LLMCallLog, utc_now
+from app.models import (
+    AnalysisRun,
+    Artifact,
+    ArtifactRevision,
+    Case,
+    LLMCallLog,
+    WorkOrderWritebackLog,
+    utc_now,
+)
 
 
 STATUS_LABELS = {
@@ -25,6 +33,7 @@ STATUS_LABELS = {
     "fallback": "兜底成功",
     "pending": "等待中",
     "signed": "已签收",
+    "sent": "已发送",
 }
 
 PROVIDER_LABELS = {
@@ -199,11 +208,91 @@ def get_run(db: Session, run_id: int) -> AnalysisRun | None:
         .options(
             selectinload(AnalysisRun.artifacts).selectinload(Artifact.revisions),
             selectinload(AnalysisRun.llm_logs),
+            selectinload(AnalysisRun.writeback_logs),
             selectinload(AnalysisRun.case),
         )
         .filter(AnalysisRun.id == run_id)
         .first()
     )
+
+
+def list_work_order_writeback_logs(db: Session, run_id: int) -> list[WorkOrderWritebackLog]:
+    return (
+        db.query(WorkOrderWritebackLog)
+        .filter(WorkOrderWritebackLog.run_id == run_id)
+        .order_by(WorkOrderWritebackLog.id.desc())
+        .all()
+    )
+
+
+def get_work_order_writeback_log(db: Session, log_id: int) -> WorkOrderWritebackLog | None:
+    return (
+        db.query(WorkOrderWritebackLog)
+        .options(selectinload(WorkOrderWritebackLog.run).selectinload(AnalysisRun.case))
+        .filter(WorkOrderWritebackLog.id == log_id)
+        .first()
+    )
+
+
+def _next_writeback_attempt_count(db: Session, run_id: int) -> int:
+    latest = (
+        db.query(func.max(WorkOrderWritebackLog.attempt_count))
+        .filter(WorkOrderWritebackLog.run_id == run_id)
+        .scalar()
+    )
+    return int(latest or 0) + 1
+
+
+def record_work_order_writeback_attempt(
+    db: Session,
+    run: AnalysisRun,
+    payload: dict[str, Any],
+    webhook_url: str,
+) -> WorkOrderWritebackLog:
+    source = payload.get("source", {})
+    log = WorkOrderWritebackLog(
+        run_id=run.id,
+        status="pending",
+        attempt_count=_next_writeback_attempt_count(db, run.id),
+        source_external_id=str(source.get("external_id", "")),
+        target_status=str(payload.get("target_status", "")),
+        webhook_url=webhook_url,
+        request_payload=payload,
+        response_payload={},
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def mark_work_order_writeback_sent(
+    db: Session,
+    log: WorkOrderWritebackLog,
+    response_payload: dict[str, Any],
+) -> WorkOrderWritebackLog:
+    log.status = "sent"
+    log.response_payload = response_payload
+    log.error_message = None
+    log.updated_at = utc_now()
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+def mark_work_order_writeback_failed(
+    db: Session,
+    log: WorkOrderWritebackLog,
+    error_message: str,
+    response_payload: dict[str, Any] | None = None,
+) -> WorkOrderWritebackLog:
+    log.status = "failed"
+    log.response_payload = response_payload or {}
+    log.error_message = error_message
+    log.updated_at = utc_now()
+    db.commit()
+    db.refresh(log)
+    return log
 
 
 def get_artifact_with_revisions(db: Session, artifact_id: int) -> Artifact | None:

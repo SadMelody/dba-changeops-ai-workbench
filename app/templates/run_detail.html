@@ -164,6 +164,30 @@
         {% endif %}
       </div>
     {% endfor %}
+    <div class="panel-header compact">
+      <div>
+        <h2>工单回写记录</h2>
+        <p>Webhook 发送状态、尝试次数和失败原因可追踪</p>
+      </div>
+    </div>
+    {% if run.writeback_logs %}
+      {% for log in run.writeback_logs %}
+        <div class="audit-entry">
+          <span class="chip {{ 'risk' if log.status == 'failed' else 'approved' if log.status == 'sent' else '' }}">{{ log.status|status_label }}</span>
+          <strong>{{ log.source_external_id or '未记录工单号' }} · 第 {{ log.attempt_count }} 次</strong>
+          <small>{{ log.target_status }} · {{ log.updated_at|dt }}</small>
+          {% if log.error_message %}
+            <p>{{ log.error_message }}</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="audit-entry">
+        <span class="chip">等待中</span>
+        <strong>暂无工单回写记录</strong>
+        <small>配置 ITSM Webhook 后可通过 API 主动回写</small>
+      </div>
+    {% endif %}
     <div class="action-column">
       {% if not delivery.is_complete %}
         <form method="post" action="/runs/{{ run.id }}/approve-all" data-loading-form>

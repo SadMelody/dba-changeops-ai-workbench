@@ -58,7 +58,7 @@ FastAPI 自动生成的交互式文档也可访问：
 
 ```json
 {
-  "total": 5,
+  "total": 11,
   "cases": [
     {
       "id": 1,
@@ -149,6 +149,243 @@ FastAPI 自动生成的交互式文档也可访问：
 - `business_context`、`schema_notes`、`constraints` 最多 4000 个字符。
 - `source_sql` 最多 12000 个字符。
 
+### `POST /api/integrations/work-orders/import`
+
+从外部工单系统导入变更需求。这个接口适合 ITSM、Jira、ServiceNow 或自动化脚本把工单字段映射成 ChangeOps 案例；不要求外部系统字段名完全一致，接口会识别常见别名。
+
+请求示例：
+
+```json
+{
+  "ticket_id": "CHG-20260613-001",
+  "ticket_url": "https://itsm.example.test/changes/CHG-20260613-001",
+  "summary": "DB2 月结批处理 SQL 回放验证",
+  "database_type": "DB2 LUW",
+  "system": "月结批处理平台",
+  "category": "SQL 回放验证",
+  "priority": "P1",
+  "env": "预生产",
+  "requester": "批处理 DBA",
+  "approval_owner": "变更经理",
+  "window": "2026-06-13 22:00-23:00",
+  "description": "月结前需要回放核心 SQL，确认访问计划和耗时变化。",
+  "operation_commands": [
+    "db2batch -d COREDB -f month_end.sql -o r 5 p 3 -r replay_before.out",
+    "RUNSTATS ON TABLE BATCH.MONTH_END WITH DISTRIBUTION AND DETAILED INDEXES ALL;"
+  ],
+  "affected_objects": "BATCH.MONTH_END、BATCH.MONTH_END_ITEM",
+  "risk_constraints": "只能在预生产执行，输出需要归档到变更单。",
+  "labels": ["DB2", "preprod", "replay"],
+  "metadata": {
+    "source": "itsm"
+  },
+  "run_analysis": true
+}
+```
+
+响应示例：
+
+```json
+{
+  "message": "外部工单已导入并生成交付方案",
+  "source": {
+    "external_id": "CHG-20260613-001",
+    "external_url": "https://itsm.example.test/changes/CHG-20260613-001",
+    "labels": ["DB2", "preprod", "replay"]
+  },
+  "case": {
+    "id": 12,
+    "title": "DB2 月结批处理 SQL 回放验证",
+    "latest_run": {
+      "id": 31,
+      "status": "completed"
+    }
+  },
+  "run": {
+    "id": 31,
+    "status": "completed",
+    "delivery": {
+      "label": "0/6 已确认"
+    }
+  },
+  "analyze_url": "/api/cases/12/analyze"
+}
+```
+
+字段说明：
+
+- `ticket_id`、`external_id` 或 `change_id`：外部工单号，必填。
+- `summary` 或 `title`：变更标题，必填。
+- `database_type`/`db_type`、`system`/`target_system`、`category`/`change_type` 等字段会映射到内部案例字段。
+- `operation_commands` 可传字符串数组；如果已经有完整 SQL，也可以直接传 `source_sql`、`sql` 或 `change_script`。
+- `labels` 和 `metadata` 会写入业务背景，方便后续人工复核追溯来源。
+- `run_analysis: true` 会在导入后立即生成交付方案；不传则只创建案例。
+
+状态码：
+
+- `200`：导入成功。
+- `400`：请求体不是合法 JSON。
+- `422`：请求体不是 JSON 对象，缺少外部工单号/标题，或字段不满足内部案例边界。
+
+### `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload`
+
+生成外部工单回写 payload。这个接口不会主动调用真实 ITSM，而是把签收状态、交付完成度、导出链接和工单评论内容组织成稳定 JSON，方便预览、调试或接入 Jira、ServiceNow、企业微信审批和内部工单 API。
+
+响应示例：
+
+```json
+{
+  "action": "work_order_delivery_writeback",
+  "source": {
+    "external_id": "CHG-20260613-001",
+    "external_url": "https://itsm.example.test/changes/CHG-20260613-001",
+    "labels": ["DB2", "preprod", "replay"]
+  },
+  "target_status": "signed",
+  "delivery": {
+    "label": "6/6 已确认",
+    "percent": 100
+  },
+  "signoff": {
+    "label": "已签收",
+    "signed_by": "变更经理"
+  },
+  "exports": {
+    "markdown": "http://127.0.0.1:8000/cases/12/runs/31/export",
+    "pdf": "http://127.0.0.1:8000/cases/12/runs/31/export.pdf"
+  },
+  "comment_markdown": "DBA ChangeOps 已生成交付包..."
+}
+```
+
+`target_status` 会随交付状态变化：
+
+- `delivery_generated`：已生成交付物，但尚未全部确认。
+- `ready_for_signoff`：交付物已全部确认，等待签收。
+- `signed`：交付包已签收，可把导出链接和签收信息回写工单。
+
+状态码：
+
+- `200`：回写 payload 生成成功。
+- `404`：分析记录不存在。
+- `422`：该分析记录不是从外部工单导入，缺少外部工单号。
+
+### `POST /api/integrations/work-orders/runs/{run_id}/writeback`
+
+主动把外部工单回写 payload 发送到配置的 ITSM Webhook。这个接口复用上面的标准 payload，并按环境变量配置追加 Bearer Token，适合先接通真实工单系统的通用 Webhook，再逐步做厂商字段映射。
+
+需要配置：
+
+- `ITSM_WEBHOOK_URL`：Webhook 地址，必填；未配置时接口返回 `422`。
+- `ITSM_WEBHOOK_TOKEN`：可选认证 Token；配置后请求头会带 `Authorization: Bearer <token>`。
+
+响应示例：
+
+```json
+{
+  "message": "外部工单回写已发送",
+  "payload": {
+    "action": "work_order_delivery_writeback",
+    "source": {
+      "external_id": "CHG-20260613-001"
+    },
+    "target_status": "signed"
+  },
+  "webhook": {
+    "configured": true,
+    "url": "https://itsm.example.test/webhook/changeops",
+    "status_code": 202,
+    "accepted": true,
+    "response": {
+      "received": true
+    }
+  },
+  "log": {
+    "id": 8,
+    "status": "sent",
+    "attempt_count": 1,
+    "source_external_id": "CHG-20260613-001",
+    "target_status": "signed"
+  }
+}
+```
+
+状态码：
+
+- `200`：Webhook 已返回 2xx/3xx，视为发送成功。
+- `404`：分析记录不存在。
+- `422`：未配置 `ITSM_WEBHOOK_URL`，或分析记录缺少外部工单号。
+- `502`：外部 Webhook 返回 4xx/5xx；失败 attempt 会写入 `work_order_writeback_logs`。
+
+### `GET /api/integrations/work-orders/runs/{run_id}/writebacks`
+
+查看某次分析运行的外部工单回写记录。每次主动发送或失败重试都会生成一条 attempt，便于演示真实系统接入时的追踪能力。
+
+响应示例：
+
+```json
+{
+  "run_id": 31,
+  "total": 2,
+  "writebacks": [
+    {
+      "id": 9,
+      "status": "sent",
+      "status_label": "已发送",
+      "attempt_count": 2,
+      "source_external_id": "CHG-20260613-001",
+      "target_status": "signed",
+      "webhook_url": "https://itsm.example.test/webhook/changeops",
+      "error_message": null
+    },
+    {
+      "id": 8,
+      "status": "failed",
+      "status_label": "失败",
+      "attempt_count": 1,
+      "source_external_id": "CHG-20260613-001",
+      "target_status": "signed",
+      "error_message": "ITSM Webhook 回写失败：HTTP 503"
+    }
+  ]
+}
+```
+
+状态码：
+
+- `200`：返回该运行的回写记录。
+- `404`：分析记录不存在。
+
+### `POST /api/integrations/work-orders/writebacks/{log_id}/retry`
+
+重试一条失败的工单回写记录。重试会基于当前分析运行重新生成 payload，并创建新的 attempt；成功记录不会被允许重试，避免重复写入外部工单。
+
+响应示例：
+
+```json
+{
+  "message": "外部工单回写已重试发送",
+  "previous_log": {
+    "id": 8,
+    "status": "failed",
+    "attempt_count": 1
+  },
+  "log": {
+    "id": 9,
+    "status": "sent",
+    "attempt_count": 2
+  }
+}
+```
+
+状态码：
+
+- `200`：重试发送成功。
+- `404`：回写记录或分析记录不存在。
+- `409`：该记录不是失败状态，不能重试。
+- `422`：未配置 `ITSM_WEBHOOK_URL`，或分析记录缺少外部工单号。
+- `502`：外部 Webhook 再次失败，并写入新的失败 attempt。
+
 ### `POST /api/cases/{case_id}/analyze`
 
 触发一次 AI 分析。未配置 `LLM_API_KEY` 或模型调用失败时，系统会自动使用场景化离线兜底，并写入 LLM 调用审计。审计 payload 落库前会遮蔽常见密码、Token、API Key 和连接串口令。
@@ -202,6 +439,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `case_inputs`：本次分析使用的业务背景、SQL、表结构和约束。
 - `artifacts`：6 类交付物正文、确认状态、版本记录、最近内容差异和版本 API 链接。
 - `llm_logs`：模型提供方、模型名、状态、耗时、失败原因，以及已脱敏的请求和响应审计 payload。
+- `writeback_logs`：外部工单 Webhook 回写 attempt、状态、目标工单号、目标状态、响应和失败原因。
 - `export_urls`：固定到本次运行记录的 Markdown 和 PDF 交付包下载入口。
 
 状态码：

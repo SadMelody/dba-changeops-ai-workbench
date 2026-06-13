@@ -35,6 +35,8 @@ class Settings(BaseModel):
     )
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model: str = os.getenv("LLM_MODEL", "qwen-plus")
+    itsm_webhook_url: str = os.getenv("ITSM_WEBHOOK_URL", "")
+    itsm_webhook_token: str = os.getenv("ITSM_WEBHOOK_TOKEN", "")
     app_env: str = os.getenv("APP_ENV", "development")
 
 

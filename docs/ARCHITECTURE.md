@@ -13,12 +13,13 @@ DBA ChangeOps AI 工作台的核心目标是把“数据库变更需求”转成
 - LLM 调用审计
 - Markdown/PDF 导出
 - 离线兜底
+- 外部工单导入 API、回写 payload 生成、通用 Webhook 发送、回写日志和失败重试
 
 暂不进入首版：
 
 - 多租户
 - 复杂权限
-- 真实工单系统集成
+- 具体 ITSM 厂商字段映射和审批流闭环
 - 真实 DB2 实例连接
 - 企业级多级审批流
 
@@ -51,6 +52,7 @@ flowchart LR
 - `/demo` 交付演示台复用现有案例与分析流程，不引入单独数据模型。
 - `/demo/complete` 复用标准生成、整包确认和签收服务，只做演示路径编排，不绕过审计记录。
 - `/ops` 运行状态页复用服务层统计，集中暴露数据库、模型模式、交付数据和签收核验结果。
+- `/api/integrations/work-orders/import` 负责把外部工单载荷归一化为内部案例，可选择导入后直接触发分析；`/api/integrations/work-orders/runs/{run_id}/writeback-payload` 负责生成可回写到 ITSM/Jira 的状态、签收、导出链接和评论 payload；`/api/integrations/work-orders/runs/{run_id}/writeback` 在配置 `ITSM_WEBHOOK_URL` 后主动发送标准 payload；`work_order_writeback_logs` 记录每次发送和重试结果，便于排查外部系统故障。
 
 ## 数据模型
 
@@ -60,6 +62,7 @@ erDiagram
   cases ||--o{ artifacts : owns
   analysis_runs ||--o{ artifacts : produces
   analysis_runs ||--o{ llm_call_logs : records
+  analysis_runs ||--o{ work_order_writeback_logs : records
   artifacts ||--o{ artifact_revisions : tracks
 
   cases {
@@ -117,6 +120,17 @@ erDiagram
     int latency_ms
     text error_message
   }
+
+  work_order_writeback_logs {
+    int id
+    int run_id
+    string status
+    int attempt_count
+    string source_external_id
+    string target_status
+    string webhook_url
+    text error_message
+  }
 ```
 
 表设计解释：
@@ -126,8 +140,10 @@ erDiagram
 - `artifacts`：当前可编辑交付物，例如风险评估、Runbook、回滚方案。
 - `artifact_revisions`：交付物版本历史，记录 AI 生成、人工编辑、人工确认。
 - `llm_call_logs`：模型请求审计，包括耗时、状态、请求响应和失败原因。
+- `work_order_writeback_logs`：外部工单 Webhook 发送记录，包括 attempt 次数、目标状态、请求 payload、响应 payload 和失败原因。
 - 审计 payload 落库前会做轻量脱敏，避免公开演示或试运行时把误贴的口令、Token 和 API Key 原样保存。
 - `demo_fixtures`：内置合成案例，保证无外部依赖也能试跑。
+- 外部工单导入当前复用 `cases`，把工单号、链接、标签和元数据写入业务背景；回写 payload 从这些来源信息和 `analysis_runs` 的交付/签收状态生成，通用 Webhook 发送层只负责认证头和 HTTP 投递。后续接入具体 ITSM 时再增加专用外部映射表、字段适配器和厂商状态机。
 
 ## AI 工作流
 

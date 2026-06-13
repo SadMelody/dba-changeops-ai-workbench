@@ -57,32 +57,47 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 py -B -m pytest -q -p no:cacheprovider
 ```
 
-3. 跑端到端冒烟：
+3. 跑离线 DB2 场景评测：
+
+```powershell
+py -B -m app.evaluation
+```
+
+4. 跑端到端冒烟：
 
 ```powershell
 .\scripts\smoke_check.ps1 -BaseUrl http://127.0.0.1:8000 -CompleteDemo
 ```
 
-4. 或者直接运行最终验收脚本：
+5. 或者直接运行最终验收脚本：
 
 ```powershell
 .\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-5. 推送到 GitHub 后检查 CI 是否通过；CI 会启动服务、跑最终验收，并刷新样例 Markdown/PDF。
+该脚本会覆盖自动化测试、离线 DB2 场景评测、Alembic 迁移链、端到端冒烟、中文界面、部署配置和交付打包检查。
 
-6. 打开 `/demo`，确认推荐案例、中文界面、一键完整闭环和 Markdown/PDF 导出可用。
+6. 推送到 GitHub 后检查 CI 是否通过；CI 会启动服务、跑最终验收，并刷新样例 Markdown/PDF。
+
+7. 打开 `/demo`，确认推荐案例、中文界面、一键完整闭环和 Markdown/PDF 导出可用。
 
 ## 能力覆盖
 
 | 交付要求 | 当前证据 |
 | --- | --- |
 | 创建变更案例 | `/cases/new`、`POST /api/cases` |
+| 外部工单导入 | `POST /api/integrations/work-orders/import`、`app/integrations.py` |
+| 工单回写 payload | `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload` |
+| ITSM Webhook 回写 | `POST /api/integrations/work-orders/runs/{run_id}/writeback`、`ITSM_WEBHOOK_URL` |
+| 工单回写日志 | `GET /api/integrations/work-orders/runs/{run_id}/writebacks`、`work_order_writeback_logs` |
+| 失败回写重试 | `POST /api/integrations/work-orders/writebacks/{log_id}/retry` |
 | 案例列表和详情 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}` |
 | 中文本地界面 | Jinja2 模板、`app/static/styles.css` 和本地增强脚本 |
 | AI 分析工作流 | `POST /api/cases/{id}/analyze`、`analysis_runs` |
 | 国内模型适配 | `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL` |
 | 无 Key 兜底 | `app/demo_data.py` 场景化 DB2 兜底输出 |
+| 离线场景评测 | `app/evaluation.py`、`scripts/evaluate_demo_fixtures.ps1` |
+| Alembic 迁移链 | `alembic/versions/`、`scripts/final_acceptance.ps1` |
 | 风险、Runbook、回滚、检查、验收、沟通摘要 | 6 类 `artifacts` |
 | 人工编辑与确认 | `POST /api/artifacts/{id}`、`POST /api/artifacts/{id}/approve` |
 | 版本记录和差异 | `artifact_revisions`、`GET /api/artifacts/{id}/revisions`、`GET /api/artifacts/{id}/diff` |
@@ -101,6 +116,7 @@ py -B -m pytest -q -p no:cacheprovider
 | README 发布链接回填 | `scripts/update_release_links.ps1` |
 | 公开交付总审计 | `scripts/public_delivery_audit.ps1` |
 | 当前交付状态汇总 | `scripts/delivery_status.ps1` |
+| 项目边界与 Agent 协作规则 | `AGENTS.md` |
 | 需求覆盖审计 | `docs/COMPLETION_AUDIT.md` |
 | 样例交付包 | `scripts/generate_demo_exports.ps1`、`artifacts/samples/` |
 

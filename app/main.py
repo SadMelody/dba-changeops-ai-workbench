@@ -14,6 +14,11 @@ from app.config import get_settings
 from app.database import create_db, get_db
 from app.demo_data import seed_demo_data
 from app.exporter import export_markdown, export_pdf_bytes
+from app.integrations import (
+    build_work_order_writeback_payload,
+    dispatch_work_order_writeback,
+    normalize_work_order_payload,
+)
 from app.models import Artifact, Case
 from app.services import (
     analyze_case,
@@ -27,10 +32,15 @@ from app.services import (
     get_artifact_with_revisions,
     get_case,
     get_run,
+    get_work_order_writeback_log,
     list_cases,
+    list_work_order_writeback_logs,
+    mark_work_order_writeback_failed,
+    mark_work_order_writeback_sent,
     normalize_artifact_content,
     operational_status,
     provider_label,
+    record_work_order_writeback_attempt,
     run_signoff_summary,
     signoff_run,
     status_label,
@@ -166,6 +176,24 @@ def _llm_log_payload(log) -> dict[str, Any]:
     }
 
 
+def _writeback_log_payload(log) -> dict[str, Any]:
+    return {
+        "id": log.id,
+        "run_id": log.run_id,
+        "status": log.status,
+        "status_label": status_label(log.status),
+        "attempt_count": log.attempt_count,
+        "source_external_id": log.source_external_id,
+        "target_status": log.target_status,
+        "webhook_url": log.webhook_url,
+        "request_payload": log.request_payload,
+        "response_payload": log.response_payload,
+        "error_message": log.error_message,
+        "created_at": format_dt(log.created_at),
+        "updated_at": format_dt(log.updated_at),
+    }
+
+
 def _run_detail_payload(run) -> dict[str, Any]:
     return {
         **_run_payload(run),
@@ -178,10 +206,39 @@ def _run_detail_payload(run) -> dict[str, Any]:
         },
         "artifacts": [_artifact_payload(artifact) for artifact in run.artifacts],
         "llm_logs": [_llm_log_payload(log) for log in run.llm_logs],
+        "writeback_logs": [_writeback_log_payload(log) for log in run.writeback_logs],
         "export_urls": {
             "markdown": f"/cases/{run.case_id}/runs/{run.id}/export",
             "pdf": f"/cases/{run.case_id}/runs/{run.id}/export.pdf",
         },
+    }
+
+
+def _send_work_order_writeback(db: Session, run, request: Request) -> dict[str, Any]:
+    payload = build_work_order_writeback_payload(run, base_url=str(request.base_url))
+    settings = get_settings()
+    webhook_url = (getattr(settings, "itsm_webhook_url", "") or "").strip()
+    if not webhook_url:
+        raise ValueError("ITSM_WEBHOOK_URL 未配置，无法主动回写工单")
+
+    log = record_work_order_writeback_attempt(db, run, payload, webhook_url)
+    try:
+        webhook = dispatch_work_order_writeback(payload, settings)
+    except RuntimeError as exc:
+        log = mark_work_order_writeback_failed(db, log, str(exc))
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "log": _writeback_log_payload(log),
+            },
+        ) from exc
+
+    log = mark_work_order_writeback_sent(db, log, webhook)
+    return {
+        "payload": payload,
+        "webhook": webhook,
+        "log": _writeback_log_payload(log),
     }
 
 
@@ -389,6 +446,34 @@ async def create_case_api(request: Request, db: Session = Depends(get_db)) -> JS
     return JSONResponse({"id": case.id, "title": case.title, "status": case.status})
 
 
+@app.post("/api/integrations/work-orders/import")
+async def import_work_order_api(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
+    data = await _json_object(request)
+    try:
+        normalized = normalize_work_order_payload(data)
+        case = create_case(db, normalized["case_data"])
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
+
+    payload: dict[str, Any] = {
+        "message": "外部工单已导入",
+        "source": normalized["source"],
+        "case": _case_payload(case),
+        "analyze_url": f"/api/cases/{case.id}/analyze",
+    }
+    if normalized["run_analysis"]:
+        run = analyze_case(db, case)
+        refreshed_case = get_case(db, case.id) or case
+        payload.update(
+            {
+                "message": "外部工单已导入并生成交付方案",
+                "case": _case_payload(refreshed_case),
+                "run": _run_payload(run),
+            }
+        )
+    return JSONResponse(payload)
+
+
 @app.get("/api/cases")
 def cases_api(db: Session = Depends(get_db)) -> JSONResponse:
     cases = list_cases(db)
@@ -492,6 +577,80 @@ def run_api(run_id: int, db: Session = Depends(get_db)) -> JSONResponse:
     if not run:
         raise HTTPException(status_code=404, detail="分析记录不存在")
     return JSONResponse(_run_detail_payload(run))
+
+
+@app.get("/api/integrations/work-orders/runs/{run_id}/writeback-payload")
+def work_order_writeback_payload_api(
+    run_id: int, request: Request, db: Session = Depends(get_db)
+) -> JSONResponse:
+    run = get_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    try:
+        payload = build_work_order_writeback_payload(run, base_url=str(request.base_url))
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
+    return JSONResponse(payload)
+
+
+@app.post("/api/integrations/work-orders/runs/{run_id}/writeback")
+def work_order_writeback_api(
+    run_id: int, request: Request, db: Session = Depends(get_db)
+) -> JSONResponse:
+    run = get_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    try:
+        result = _send_work_order_writeback(db, run, request)
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
+    return JSONResponse(
+        {
+            "message": "外部工单回写已发送",
+            **result,
+        }
+    )
+
+
+@app.get("/api/integrations/work-orders/runs/{run_id}/writebacks")
+def work_order_writeback_logs_api(run_id: int, db: Session = Depends(get_db)) -> JSONResponse:
+    run = get_run(db, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    logs = list_work_order_writeback_logs(db, run_id)
+    return JSONResponse(
+        {
+            "run_id": run_id,
+            "total": len(logs),
+            "writebacks": [_writeback_log_payload(log) for log in logs],
+        }
+    )
+
+
+@app.post("/api/integrations/work-orders/writebacks/{log_id}/retry")
+def retry_work_order_writeback_api(
+    log_id: int, request: Request, db: Session = Depends(get_db)
+) -> JSONResponse:
+    previous_log = get_work_order_writeback_log(db, log_id)
+    if not previous_log:
+        raise HTTPException(status_code=404, detail="工单回写记录不存在")
+    if previous_log.status != "failed":
+        raise HTTPException(status_code=409, detail="只有失败的工单回写记录可以重试")
+
+    run = get_run(db, previous_log.run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="分析记录不存在")
+    try:
+        result = _send_work_order_writeback(db, run, request)
+    except ValueError as exc:
+        raise _validation_error(exc) from exc
+    return JSONResponse(
+        {
+            "message": "外部工单回写已重试发送",
+            "previous_log": _writeback_log_payload(previous_log),
+            **result,
+        }
+    )
 
 
 @app.get("/api/artifacts/{artifact_id}/revisions")

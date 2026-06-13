@@ -26,6 +26,7 @@
 - 人工编辑、确认、版本快照、版本差异对比和版本 API 查询
 - 交付包签收：整包确认后由审批人签收，签收记录进入页面、API 和导出文档
 - 分析失败提示和重新生成入口
+- 外部工单导入、回写 payload、Webhook API、回写日志和失败重试：把 ITSM/Jira 类工单载荷映射为变更案例，并在签收后生成或主动发送交付状态、导出链接和评论内容
 - 首页交付就绪度总览，展示案例、方案、确认进度、签收进度和兜底记录
 - `/demo` 交付演示台，提供推荐案例、一键生成、一键完整闭环和导出入口
 - `/ops` 运行状态页，集中展示数据库、模型模式、案例、交付和签收统计
@@ -33,6 +34,7 @@
 - 交付完成度、待确认项总览和复核进度提示
 - 单份确认、整包确认和交付签收，支持把一次分析结果快速收敛为可导出交付包
 - 带文档封面、目录、交付清单、状态、版本、页码和 LLM 审计的结构化 Markdown/PDF 导出
+- 离线 DB2 场景评测基线：校验 11 个内置场景都产出完整 6 类交付物，并命中关键 DBA 标记
 - 无 API Key 的离线兜底
 
 这个项目按真实产品闭环来设计：输入、生成、复核、确认、审计、导出都能落到可交付材料上。它既适合技术展示，也具备继续扩展到内部变更评审工具的基础。
@@ -158,6 +160,14 @@ Render/Railway/Fly.io 的基础配置：
 .\.venv\Scripts\python.exe -m pytest
 ```
 
+离线场景评测可以单独运行：
+
+```powershell
+.\scripts\evaluate_demo_fixtures.ps1 -PythonCommand .\.venv\Scripts\python.exe
+```
+
+它会输出 JSON 评测报告，检查 11 个内置 DB2 场景的交付物结构和场景关键标记。
+
 部署或演示前可以运行 smoke check：
 
 ```powershell
@@ -172,10 +182,10 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-它会依次执行自动化测试和端到端冒烟验收。
+它会依次执行自动化测试、离线 DB2 场景评测和端到端冒烟验收。
 同时会检查中文界面交付证据、部署配置一致性和面试交付包打包能力。
 
-推送到 GitHub 后，`.github/workflows/ci.yml` 会在 Linux runner 上安装依赖、启动本地服务、运行最终验收脚本，并刷新样例 Markdown/PDF 交付包，用于证明项目不是只在本机偶然可跑。
+推送到 GitHub 后，`.github/workflows/ci.yml` 会在 Linux runner 上安装依赖、启动本地服务、运行最终验收脚本，并刷新样例 Markdown/PDF 交付包。最终验收会覆盖自动化测试、离线 DB2 场景评测、Alembic 迁移链、端到端冒烟、中文界面、部署配置和打包检查，用于证明项目不是只在本机偶然可跑。
 
 需要刷新样例交付包时：
 
@@ -286,13 +296,14 @@ app/
   static/              样式和前端增强脚本
 alembic/               数据库迁移
 tests/                 工作流测试
-scripts/               冒烟检查和最终验收脚本
+scripts/               冒烟检查、离线评测和最终验收脚本
 docs/                  架构说明和演示脚本
 artifacts/samples/     可直接展示的样例交付包
 ```
 
 扩展文档：
 
+- [项目边界与 Agent 协作规则](AGENTS.md)
 - [一页式作品简介](docs/PORTFOLIO_BRIEF.md)
 - [需求覆盖审计](docs/COMPLETION_AUDIT.md)
 - [架构说明](docs/ARCHITECTURE.md)
@@ -329,4 +340,4 @@ artifacts/samples/     可直接展示的样例交付包
 ## 下一步计划
 
 - 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -VideoUrl <视频地址> -CompleteDemo -Strict` 做严格公开交付审计。
-- 沉淀真实评测集，并逐步接入工单系统、只读 DB2 检查账号和审批流。
+- 扩充真实评测样本，并逐步接入只读 DB2 检查账号、审批评论同步和具体 ITSM 字段映射。

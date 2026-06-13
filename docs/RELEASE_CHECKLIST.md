@@ -10,20 +10,28 @@
 .\scripts\final_acceptance.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-2. 刷新样例交付包：
+该脚本会覆盖自动化测试、离线 DB2 场景评测、Alembic 迁移链、端到端冒烟、中文界面、部署配置和交付打包检查。
+
+2. 如需单独查看离线 DB2 场景评测报告：
+
+```powershell
+.\scripts\evaluate_demo_fixtures.ps1 -PythonCommand .\.venv\Scripts\python.exe
+```
+
+3. 刷新样例交付包：
 
 ```powershell
 .\scripts\generate_demo_exports.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-3. 预览并清理本地运行产物：
+4. 预览并清理本地运行产物：
 
 ```powershell
 .\scripts\clean_release_artifacts.ps1 -WhatIf
 .\scripts\clean_release_artifacts.ps1
 ```
 
-4. 运行交付就绪审计：
+5. 运行交付就绪审计：
 
 ```powershell
 .\scripts\release_readiness.ps1 -BaseUrl http://127.0.0.1:8000
@@ -31,9 +39,9 @@
 
 该审计会在发现 `.env`、本地数据库、日志、进程 pid 文件、Python 缓存或 pytest 缓存残留时失败；如果失败，先重新运行 `scripts/clean_release_artifacts.ps1`。
 
-5. 确认 README 顶部截图和样例链接可打开。
-6. 确认 `.env` 没有提交真实密钥。
-7. 确认 GitHub Actions CI 通过。
+6. 确认 README 顶部截图和样例链接可打开。
+7. 确认 `.env` 没有提交真实密钥。
+8. 确认 GitHub Actions CI 通过。
 
 ## 部署环境
 
@@ -50,9 +58,12 @@ DATABASE_URL=postgresql+psycopg://...
 LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LLM_API_KEY=...
 LLM_MODEL=qwen-plus
+ITSM_WEBHOOK_URL=
+ITSM_WEBHOOK_TOKEN=
 ```
 
 如果暂时没有模型 Key，可以不配置 `LLM_API_KEY`。系统会进入离线兜底模式，但仍然能完整生成、确认、签收和导出交付包。
+如果暂时没有真实 ITSM Webhook，可以不配置 `ITSM_WEBHOOK_URL`。系统仍可生成回写 payload；主动回写接口会明确返回未配置提示。配置 Webhook 后，每次发送和失败重试都会写入 `work_order_writeback_logs`，便于排查外部系统问题。
 
 部署平台变量填写口径：
 
@@ -63,8 +74,10 @@ LLM_MODEL=qwen-plus
 | `LLM_BASE_URL` | 否 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 保留国内 OpenAI-compatible 服务入口。 |
 | `LLM_MODEL` | 否 | `qwen-plus` | 真实模型启用时使用。 |
 | `LLM_API_KEY` | 否 | 留空或真实 Key | 留空时走离线兜底，更适合稳定公开演示。 |
+| `ITSM_WEBHOOK_URL` | 否 | 留空或真实 Webhook | 配置后可主动发送工单回写 payload。 |
+| `ITSM_WEBHOOK_TOKEN` | 否 | 留空或真实 Token | 配置后使用 Bearer Token 认证。 |
 
-上线第一版建议先不填 `LLM_API_KEY`。这样可以先证明页面、数据库、审计、确认、签收和导出闭环稳定可用；真实模型接入可以作为面试中的扩展能力说明。
+上线第一版建议先不填 `LLM_API_KEY` 和 `ITSM_WEBHOOK_URL`。这样可以先证明页面、数据库、审计、确认、签收和导出闭环稳定可用；真实模型和真实工单回写可以作为面试中的扩展能力说明。
 
 ## 上线后验收
 

@@ -17,3 +17,7 @@ services:
         sync: false
       - key: LLM_MODEL
         value: qwen-plus
+      - key: ITSM_WEBHOOK_URL
+        sync: false
+      - key: ITSM_WEBHOOK_TOKEN
+        sync: false
