@@ -154,7 +154,16 @@ if ($demo) {
 
     try {
         $verify = Invoke-JsonScript (Join-Path $PSScriptRoot "verify_online_release.ps1") $verifyArgs
-        Add-Check "online:demo" ($verify.exit_code -eq 0) "online demo URL should pass release verification"
+        $onlineOk = $verify.exit_code -eq 0 -and $null -ne $verify.payload -and [bool]$verify.payload.ready
+        $onlineDetail = "online demo URL should pass release verification"
+        if ($null -eq $verify.payload) {
+            $onlineDetail = "online verification did not return parseable JSON"
+        }
+        elseif (-not [bool]$verify.payload.ready -and $verify.payload.failures) {
+            $failedNames = @($verify.payload.failures | Select-Object -ExpandProperty name)
+            $onlineDetail = "online verification failed: " + ($failedNames -join ", ")
+        }
+        Add-Check "online:demo" $onlineOk $onlineDetail
     }
     catch {
         Add-Check "online:demo" $false $_.Exception.Message

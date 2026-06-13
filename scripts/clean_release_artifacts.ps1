@@ -88,6 +88,15 @@ foreach ($path in $paths) {
     }
 }
 
+$omxTempDir = Resolve-InProject ".omx"
+if (Test-Path -LiteralPath $omxTempDir) {
+    Get-ChildItem -Path $omxTempDir -Force -Filter "tmp-uvicorn*.pid" -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            $relative = [System.IO.Path]::GetRelativePath($projectRoot, $_.FullName)
+            Remove-ProjectItem $relative
+        }
+}
+
 Get-ChildItem -Path $projectRoot -Directory -Recurse -Force -Filter "__pycache__" |
     Where-Object { -not (Test-SkippedToolPath $_.FullName) } |
     ForEach-Object {
