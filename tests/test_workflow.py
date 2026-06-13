@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from app.config import load_dotenv
 from app.database import Base, SessionLocal, engine
 from app.demo_data import ARTIFACT_TITLES, DEMO_CASES, fixture_analysis
-from app.integrations import dispatch_work_order_writeback
+from app.integrations import WorkOrderWritebackError, dispatch_work_order_writeback
 from app.evaluation import SCENARIO_MARKERS, evaluate_demo_fixtures
 from app.llm import LLMClient, normalize_response, sanitize_audit_payload
 from app.main import app
@@ -795,10 +795,17 @@ def test_dispatch_work_order_writeback_reports_webhook_http_failure() -> None:
 
     try:
         dispatch_work_order_writeback(payload, settings, http_client_factory=factory)
-    except RuntimeError as exc:
+    except WorkOrderWritebackError as exc:
         assert str(exc) == "ITSM Webhook 回写失败：HTTP 400"
+        assert exc.response_payload == {
+            "configured": True,
+            "url": "https://itsm.example.test/webhook/changeops",
+            "status_code": 400,
+            "accepted": False,
+            "response": {"error": "bad request"},
+        }
     else:
-        raise AssertionError("Expected RuntimeError for non-success webhook response")
+        raise AssertionError("Expected WorkOrderWritebackError for non-success webhook response")
 
 
 def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> None:
@@ -904,7 +911,16 @@ def test_work_order_writeback_api_records_failure_and_retries(monkeypatch) -> No
 
     def failing_dispatch(payload, settings):
         dispatch_calls.append(payload)
-        raise RuntimeError("ITSM Webhook 回写失败：HTTP 503")
+        raise WorkOrderWritebackError(
+            "ITSM Webhook 回写失败：HTTP 503",
+            {
+                "configured": True,
+                "url": "https://itsm.example.test/webhook/changeops",
+                "status_code": 503,
+                "accepted": False,
+                "response": {"error": "maintenance"},
+            },
+        )
 
     monkeypatch.setattr("app.main.dispatch_work_order_writeback", failing_dispatch)
 
@@ -916,11 +932,21 @@ def test_work_order_writeback_api_records_failure_and_retries(monkeypatch) -> No
     assert failed_detail["log"]["status"] == "failed"
     assert failed_detail["log"]["attempt_count"] == 1
     assert failed_detail["log"]["error_message"] == "ITSM Webhook 回写失败：HTTP 503"
+    assert failed_detail["log"]["response_payload"] == {
+        "configured": True,
+        "url": "https://itsm.example.test/webhook/changeops",
+        "status_code": 503,
+        "accepted": False,
+        "response": {"error": "maintenance"},
+    }
     failed_log_id = failed_detail["log"]["id"]
 
     logs_response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writebacks")
     assert logs_response.status_code == 200
     assert logs_response.json()["writebacks"][0]["status"] == "failed"
+    assert logs_response.json()["writebacks"][0]["response_payload"]["response"] == {
+        "error": "maintenance"
+    }
 
     def successful_dispatch(payload, settings):
         dispatch_calls.append(payload)

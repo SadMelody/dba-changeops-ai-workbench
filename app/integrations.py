@@ -30,6 +30,12 @@ WORK_ORDER_URL_PREFIX = "工单链接："
 WORK_ORDER_LABELS_PREFIX = "工单标签："
 
 
+class WorkOrderWritebackError(RuntimeError):
+    def __init__(self, message: str, response_payload: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.response_payload = response_payload or {}
+
+
 def _text(data: dict[str, Any], *keys: str, default: str = "") -> str:
     for key in keys:
         if key not in data:
@@ -279,6 +285,20 @@ def _response_body(response: httpx.Response) -> Any:
         return response.text[:2000]
 
 
+def _webhook_response_payload(
+    webhook_url: str,
+    response: httpx.Response,
+    body: Any,
+) -> dict[str, Any]:
+    return {
+        "configured": True,
+        "url": webhook_url,
+        "status_code": response.status_code,
+        "accepted": response.status_code < 400,
+        "response": body,
+    }
+
+
 def dispatch_work_order_writeback(
     payload: dict[str, Any],
     settings: Any,
@@ -302,16 +322,22 @@ def dispatch_work_order_writeback(
         with http_client_factory(timeout=timeout) as client:
             response = client.post(webhook_url, headers=headers, json=payload)
     except httpx.HTTPError as exc:
-        raise RuntimeError(f"ITSM Webhook 回写失败：{exc}") from exc
+        raise WorkOrderWritebackError(
+            f"ITSM Webhook 回写失败：{exc}",
+            {
+                "configured": True,
+                "url": webhook_url,
+                "accepted": False,
+                "error": str(exc),
+            },
+        ) from exc
 
     body = _response_body(response)
+    response_payload = _webhook_response_payload(webhook_url, response, body)
     if response.status_code >= 400:
-        raise RuntimeError(f"ITSM Webhook 回写失败：HTTP {response.status_code}")
+        raise WorkOrderWritebackError(
+            f"ITSM Webhook 回写失败：HTTP {response.status_code}",
+            response_payload,
+        )
 
-    return {
-        "configured": True,
-        "url": webhook_url,
-        "status_code": response.status_code,
-        "accepted": True,
-        "response": body,
-    }
+    return response_payload

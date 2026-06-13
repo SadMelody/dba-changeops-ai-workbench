@@ -15,6 +15,7 @@ from app.database import create_db, get_db
 from app.demo_data import seed_demo_data
 from app.exporter import export_markdown, export_pdf_bytes
 from app.integrations import (
+    WorkOrderWritebackError,
     build_work_order_writeback_payload,
     dispatch_work_order_writeback,
     normalize_work_order_payload,
@@ -224,6 +225,15 @@ def _send_work_order_writeback(db: Session, run, request: Request) -> dict[str, 
     log = record_work_order_writeback_attempt(db, run, payload, webhook_url)
     try:
         webhook = dispatch_work_order_writeback(payload, settings)
+    except WorkOrderWritebackError as exc:
+        log = mark_work_order_writeback_failed(db, log, str(exc), exc.response_payload)
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(exc),
+                "log": _writeback_log_payload(log),
+            },
+        ) from exc
     except RuntimeError as exc:
         log = mark_work_order_writeback_failed(db, log, str(exc))
         raise HTTPException(

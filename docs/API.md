@@ -315,7 +315,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `200`：Webhook 已返回 2xx/3xx，视为发送成功。
 - `404`：分析记录不存在。
 - `422`：未配置 `ITSM_WEBHOOK_URL`，或分析记录缺少外部工单号。
-- `502`：外部 Webhook 返回 4xx/5xx；失败 attempt 会写入 `work_order_writeback_logs`。
+- `502`：外部 Webhook 返回 4xx/5xx；失败 attempt 会写入 `work_order_writeback_logs`，并保留外部响应体用于排障。
 
 ### `GET /api/integrations/work-orders/runs/{run_id}/writebacks`
 
@@ -345,6 +345,13 @@ FastAPI 自动生成的交互式文档也可访问：
       "attempt_count": 1,
       "source_external_id": "CHG-20260613-001",
       "target_status": "signed",
+      "response_payload": {
+        "status_code": 503,
+        "accepted": false,
+        "response": {
+          "error": "maintenance"
+        }
+      },
       "error_message": "ITSM Webhook 回写失败：HTTP 503"
     }
   ]
