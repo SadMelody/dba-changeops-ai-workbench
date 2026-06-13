@@ -62,6 +62,7 @@ $releaseBlock = @"
 - [PDF 样例交付包](artifacts/samples/changeops-demo-delivery.pdf)
 - [3-5 分钟演示脚本](docs/DEMO_SCRIPT.md)
 $videoLine
+- [公开投递操作单](docs/PUBLIC_DELIVERY.md)
 "@
 
 $pattern = '(?s)在线演示：.*?备用材料：\r?\n\r?\n(?:- .+?\r?\n)+'

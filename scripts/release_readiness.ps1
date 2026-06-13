@@ -108,6 +108,7 @@ $requiredFiles = @(
     "scripts/deploy_config_audit.ps1",
     "scripts/verify_online_release.ps1",
     "scripts/package_release.ps1",
+    "scripts/setup_dev_env.ps1",
     "scripts/update_release_links.ps1",
     "scripts/public_delivery_audit.ps1",
     "scripts/delivery_status.ps1",

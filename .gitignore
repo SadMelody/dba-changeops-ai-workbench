@@ -11,3 +11,4 @@ pytest-cache-files-*/
 *.pid
 artifacts/tmp/
 artifacts/releases/
+outputs/

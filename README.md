@@ -2,7 +2,7 @@
 
 一个面向数据库运维/DBA 场景的 AI 变更交付系统。它不是通用聊天机器人，而是把一段变更需求、SQL、表结构说明或故障描述，转成一套可以交付和审计的变更材料。
 
-在线演示：部署完成后将 Render/Railway/Fly.io 地址填写在这里。
+在线演示：https://dba-changeops-ai-workbench.onrender.com
 
 备用材料：
 
@@ -85,9 +85,8 @@
 ## 快速启动
 
 ```powershell
-python -m venv .venv
+.\scripts\setup_dev_env.ps1
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
 copy .env.example .env
 uvicorn app.main:app --reload
 ```
@@ -156,7 +155,7 @@ Render/Railway/Fly.io 的基础配置：
 ## 测试
 
 ```powershell
-pytest
+.\.venv\Scripts\python.exe -m pytest
 ```
 
 部署或演示前可以运行 smoke check：
