@@ -250,7 +250,11 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -CompleteDemo -SkipRuntime
 ```
 
-这时 `demo_ready: true` 表示“代码、样例材料和线上 Demo 已可展示”；总 `ready` 仍会保持 `false`，直到补齐可访问的备用视频并通过严格公开交付审计。
+这时重点看输出里的 `summary`：
+
+- `summary.demo_ready: true` 表示代码、样例材料和线上 Demo 已可面试展示。
+- `delivery_mode: "demo-only"` 表示当前是“可演示但非严格公开交付”。
+- 总 `ready` 仍会保持 `false`，直到补齐可访问的备用视频并通过严格公开交付审计。
 
 需要单独检查部署配置一致性时：
 

@@ -274,10 +274,42 @@ elseif ($demoReady) {
 else {
     "incomplete"
 }
+
+$remainingExternalInputs = New-Object System.Collections.Generic.List[string]
+if (-not $demo) {
+    $remainingExternalInputs.Add("DemoUrl") | Out-Null
+}
+elseif ($demoBlockingFailures.Count -gt 0) {
+    $remainingExternalInputs.Add("verified DemoUrl") | Out-Null
+}
+
+if (-not $video) {
+    $remainingExternalInputs.Add("VideoUrl") | Out-Null
+}
+elseif ($failures | Where-Object { $_.name -in @("online:video-reachable", "readme:video-url", "public:delivery-audit") }) {
+    $remainingExternalInputs.Add("verified VideoUrl") | Out-Null
+}
+
+$statusLabel = if ($deliveryMode -eq "strict-public") {
+    "严格公开交付已完成"
+}
+elseif ($deliveryMode -eq "demo-only") {
+    "线上 Demo 和本地材料可展示，严格公开交付仍缺备用视频"
+}
+else {
+    "交付仍有阻塞项，需要先处理失败检查"
+}
+
 $result = [pscustomobject]@{
     ready = $strictReady
     demo_ready = $demoReady
     delivery_mode = $deliveryMode
+    summary = [pscustomobject]@{
+        label = $statusLabel
+        strict_public_ready = $strictReady
+        demo_ready = $demoReady
+        remaining_external_inputs = @($remainingExternalInputs)
+    }
     base_url = if ($SkipRuntime) { $null } else { $BaseUrl }
     demo_url = $demo
     video_url = $video

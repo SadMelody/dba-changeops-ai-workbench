@@ -64,6 +64,7 @@ https://your-app.example.com/healthz
 
 - `demo_ready: true`：代码、样例材料和线上 Demo 已经可展示。
 - `ready: false` 且 `delivery_mode: "demo-only"`：备用演示视频仍未补齐，严格公开投递还没完成。
+- `summary.remaining_external_inputs`：列出从 demo-only 进入 strict-public 还缺的外部输入，视频暂缓时通常只剩 `VideoUrl`。
 
 ## 平台环境变量
 
@@ -96,12 +97,18 @@ https://your-app.example.com/healthz
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
 ```
 
-投递材料应至少包含：
+投递材料分两档准备：
+
+Demo-only 面试展示至少包含：
 
 - GitHub 仓库地址。
 - README 顶部的在线演示地址。
-- README 顶部的备用视频地址。
 - 样例 Markdown/PDF 交付包。
 - `docs/PORTFOLIO_BRIEF.md` 一页式项目介绍。
 - `docs/DEMO_SCRIPT.md` 3-5 分钟演示脚本。
 - `docs/INTERVIEW_QA.md` 面试答辩材料。
+
+Strict-public 公开投递还必须补齐：
+
+- README 顶部的备用视频地址。
+- `scripts/delivery_status.ps1 -DemoUrl <演示地址> -VideoUrl <视频地址> -CompleteDemo -Strict` 返回 `ready: true`。

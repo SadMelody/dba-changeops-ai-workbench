@@ -178,6 +178,7 @@ README 发布链接回填：
 ```
 
 其中 `demo_ready: true` 表示本地材料和线上 Demo 已可展示；`ready: false` 表示还缺公开视频链接，不能宣称严格公开交付完成。
+输出中的 `summary.remaining_external_inputs` 会列出剩余外部输入；视频暂缓时应只剩 `VideoUrl`。
 
 部署配置一致性审计：
 
