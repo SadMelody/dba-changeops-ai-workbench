@@ -244,9 +244,10 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
 ```
 
-视频暂缓时，可以先用真实 Demo 地址检查代码、样例材料和线上闭环：
+视频暂缓时，可以先用真实 Demo 地址检查代码、样例材料和线上闭环；如果 README 顶部已经回填了在线演示地址，`-SkipRuntime` 会自动读取：
 
 ```powershell
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -CompleteDemo -SkipRuntime
 ```
 

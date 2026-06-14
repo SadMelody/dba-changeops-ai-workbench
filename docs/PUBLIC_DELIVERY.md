@@ -57,8 +57,11 @@ https://your-app.example.com/healthz
 视频暂缓时，先运行非严格状态汇总确认 Demo 和本地材料：
 
 ```powershell
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
+
+如果 README 顶部已经回填真实在线演示地址，第一条命令会自动读取 `DemoUrl`；第二条命令用于临时检查其他部署地址。
 
 此时请看输出里的两个字段：
 
@@ -94,6 +97,7 @@ https://your-app.example.com/healthz
 ```powershell
 .\scripts\release_readiness.ps1 -SkipRuntime
 .\scripts\deploy_config_audit.ps1
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
 ```
 

@@ -150,10 +150,60 @@ function Test-UrlReachable {
     }
 }
 
-$demo = Normalize-OptionalUrl "DemoUrl" $DemoUrl
-$video = Normalize-OptionalUrl "VideoUrl" $VideoUrl
 $readmeExists = Test-Path -LiteralPath $ReadmePath
 $readme = if ($readmeExists) { Get-Content -LiteralPath $ReadmePath -Raw } else { "" }
+
+function Get-ReadmeReleaseUrl {
+    param(
+        [string]$Text,
+        [string]$Label,
+        [string]$MarkdownLabel
+    )
+
+    $match = [regex]::Match($Text, "(?m)^$([regex]::Escape($Label))：(?<url>https?://\S+)\s*$")
+    if ($match.Success) {
+        $url = $match.Groups["url"].Value.Trim().TrimEnd("/")
+        if ($url -notmatch "your-app\.example\.com|your-video\.example\.com") {
+            return $url
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($MarkdownLabel)) {
+        return $null
+    }
+
+    $markdownMatch = [regex]::Match($Text, "\[$([regex]::Escape($MarkdownLabel))\]\((?<url>https?://[^)]+)\)")
+    if (-not $markdownMatch.Success) {
+        return $null
+    }
+
+    $markdownUrl = $markdownMatch.Groups["url"].Value.Trim().TrimEnd("/")
+    if ($markdownUrl -match "your-app\.example\.com|your-video\.example\.com") {
+        return $null
+    }
+
+    return $markdownUrl
+}
+
+$inferredDemoUrl = if ($SkipRuntime -and [string]::IsNullOrWhiteSpace($DemoUrl) -and $readmeExists) {
+    Get-ReadmeReleaseUrl $readme "在线演示" $null
+}
+else {
+    $null
+}
+
+$inferredVideoUrl = if ($SkipRuntime -and [string]::IsNullOrWhiteSpace($VideoUrl) -and $readmeExists) {
+    Get-ReadmeReleaseUrl $readme "备用视频" "3-5 分钟备用演示视频"
+}
+else {
+    $null
+}
+
+$demoInput = if ($inferredDemoUrl) { $inferredDemoUrl } else { $DemoUrl }
+$videoInput = if ($inferredVideoUrl) { $inferredVideoUrl } else { $VideoUrl }
+
+$demo = Normalize-OptionalUrl "DemoUrl" $demoInput
+$video = Normalize-OptionalUrl "VideoUrl" $videoInput
 
 Add-Check "readme:exists" $readmeExists "README should exist"
 
@@ -312,7 +362,9 @@ $result = [pscustomobject]@{
     }
     base_url = if ($SkipRuntime) { $null } else { $BaseUrl }
     demo_url = $demo
+    demo_url_source = if ($inferredDemoUrl) { "README" } elseif ($demo) { "argument" } else { $null }
     video_url = $video
+    video_url_source = if ($inferredVideoUrl) { "README" } elseif ($video) { "argument" } else { $null }
     readme = if ($readmeExists) { (Resolve-Path $ReadmePath).Path } else { $ReadmePath }
     checked_at = (Get-Date).ToString("s")
     checks = $checks

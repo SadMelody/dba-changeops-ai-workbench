@@ -161,8 +161,11 @@ py -B -m app.evaluation
 如果按当前策略暂缓视频，先运行：
 
 ```powershell
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
+
+README 顶部已有真实在线演示地址时，第一条命令会自动使用该地址；第二条命令用于显式指定候选部署地址。
 
 输出 `summary.demo_ready: true` 时，说明代码、样例材料和线上 Demo 已可面试展示；输出 `ready: false` 和 `delivery_mode: "demo-only"` 是因为严格公开交付仍缺备用视频。`summary.remaining_external_inputs` 会列出后续还需要补齐的外部输入。
 

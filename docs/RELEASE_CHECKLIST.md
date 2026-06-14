@@ -123,8 +123,11 @@ ITSM_WEBHOOK_TOKEN=
 
 ```powershell
 .\scripts\delivery_status.ps1 -BaseUrl http://127.0.0.1:8000
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
+
+README 顶部已经回填在线演示地址时，`-SkipRuntime` 会自动读取 `DemoUrl`；显式 `-DemoUrl` 用于检查其他候选部署。
 
 手工检查：
 

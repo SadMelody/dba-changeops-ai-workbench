@@ -34,8 +34,11 @@ DBA ChangeOps AI 工作台需要满足两个演示场景：
 当前 Render DemoUrl 为 `https://dba-changeops-ai-workbench.onrender.com`。视频暂缓时，使用非严格状态汇总确认 Demo 和本地材料即可：
 
 ```powershell
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
+
+README 顶部已经回填在线演示地址时，第一条命令会自动读取该地址；第二条命令用于显式检查其他部署地址。
 
 ## 本地预检
 

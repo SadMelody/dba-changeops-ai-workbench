@@ -36,6 +36,22 @@ Use this file as the project boundary before making changes in this repository:
 - Treat unverified public claims as defects. A URL, video, integration, or model
   path is only "ready" after the relevant check has passed.
 
+## Default Decision Rules
+
+When a future task is underspecified, choose the option that makes the existing
+interview/demo path more credible before adding new surface area:
+
+1. Prefer fixing evidence, reproducibility, and release honesty over visual polish.
+2. Prefer tightening the existing DBA change workflow over adding unrelated AI
+   features.
+3. Prefer one complete, testable scenario over several partial scenarios.
+4. Prefer local/demo compatibility over cloud-only behavior.
+5. Prefer explicit pending status over placeholder links, fake integrations, or
+   unverifiable claims.
+
+If a request conflicts with these rules, follow the user's direct instruction,
+but call out the tradeoff in the final report.
+
 ## Current Product Boundary
 
 Keep the first-release scope focused on a stable interview/demo product:
@@ -77,6 +93,21 @@ explicitly changes direction:
 5. Defer polish that does not improve evaluator understanding or delivery
    confidence.
 
+## Release Status Semantics
+
+Use precise status language throughout scripts, docs, and final reports:
+
+- `demo_ready`: the core product demo is runnable and verifiable for interview
+  purposes.
+- `strict_public_ready`: all public delivery inputs are verified, including both
+  `DemoUrl` and `VideoUrl`.
+- `demo-only`: the deployed app can be evaluated, but one or more public delivery
+  assets are intentionally pending.
+- `pending`: an external item has not been produced or verified yet.
+
+Do not treat a skipped video as a code defect. The project may be demo-ready
+while strict public delivery remains incomplete because `VideoUrl` is pending.
+
 ## External Inputs And Delivery Boundary
 
 Treat external delivery inputs as project metadata, not hard-coded application
@@ -109,6 +140,10 @@ and has evidence:
 Video production is intentionally outside the active implementation path unless
 the user explicitly re-enables it.
 
+For project-completion work, do not mark the overall goal complete while any
+required external delivery input is still pending. Instead, report the verified
+state and the exact remaining input.
+
 ## Engineering Rules
 
 - Keep changes small, reviewable, and aligned with existing patterns.
@@ -125,6 +160,10 @@ the user explicitly re-enables it.
 - Preserve Chinese user-facing copy unless deliberately updating product wording.
 - If a feature affects public behavior, update `README.md` and relevant files in
   `docs/` in the same change.
+- When touching release scripts or generated artifacts, keep the script output,
+  README status block, and `docs/` evidence pages in sync.
+- Avoid creating parallel documentation sources for the same fact; link or update
+  the existing source of truth instead.
 
 ## Key Files
 

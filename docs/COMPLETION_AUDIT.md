@@ -174,8 +174,11 @@ README 发布链接回填：
 视频暂缓时，可以先运行：
 
 ```powershell
+.\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
 .\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
+
+README 顶部已经包含真实在线演示地址时，第一条命令会自动读取该地址；第二条命令用于检查指定的候选部署地址。
 
 其中 `demo_ready: true` 表示本地材料和线上 Demo 已可展示；`ready: false` 表示还缺公开视频链接，不能宣称严格公开交付完成。
 输出中的 `summary.remaining_external_inputs` 会列出剩余外部输入；视频暂缓时应只剩 `VideoUrl`。
