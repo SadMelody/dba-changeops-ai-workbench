@@ -37,6 +37,25 @@ function Join-Url {
     return $Root.TrimEnd("/") + "/" + $Path.TrimStart("/")
 }
 
+function Get-ReadmeReleaseUrl {
+    param(
+        [string]$Text,
+        [string]$Label
+    )
+
+    $match = [regex]::Match($Text, "(?m)^$([regex]::Escape($Label))：(?<url>https://\S+)\s*$")
+    if (-not $match.Success) {
+        return $null
+    }
+
+    $url = $match.Groups["url"].Value.Trim().TrimEnd("/")
+    if ($url -match "your-app\.example\.com|your-video\.example\.com") {
+        return $null
+    }
+
+    return $url
+}
+
 function Get-ReleaseResidues {
     $residues = New-Object System.Collections.Generic.List[string]
     $skippedPrefixes = @(
@@ -146,7 +165,8 @@ if (Test-Path -LiteralPath $samplePdf) {
 $readme = Join-Path $projectRoot "README.md"
 if (Test-Path -LiteralPath $readme) {
     $readmeText = Get-Content -LiteralPath $readme -Raw
-    Add-Check "readme:online-demo-placeholder" ($readmeText.Contains("在线演示")) "README should include online demo slot"
+    $readmeDemoUrl = Get-ReadmeReleaseUrl $readmeText "在线演示"
+    Add-Check "readme:online-demo-url" (-not [string]::IsNullOrWhiteSpace($readmeDemoUrl)) "README should include a real HTTPS online demo URL, not a placeholder"
     Add-Check "readme:api-doc" ($readmeText.Contains("docs/API.md")) "README should link API docs"
     Add-Check "readme:release-checklist" ($readmeText.Contains("docs/RELEASE_CHECKLIST.md")) "README should link release checklist"
 }

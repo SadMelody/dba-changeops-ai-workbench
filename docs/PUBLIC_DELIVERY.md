@@ -101,6 +101,8 @@ https://your-app.example.com/healthz
 .\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
 ```
 
+发布就绪审计会拒绝 README 顶部仍是示例占位的在线演示地址；严格公开交付还需要补齐可访问的视频地址。
+
 投递材料分两档准备：
 
 Demo-only 面试展示至少包含：

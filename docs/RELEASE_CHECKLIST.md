@@ -119,6 +119,8 @@ ITSM_WEBHOOK_TOKEN=
 | README | 顶部包含真实在线演示地址和备用视频链接。 |
 | 发布审计 | `scripts/delivery_status.ps1 -CompleteDemo -Strict` 返回 `ready: true`。 |
 
+`scripts/release_readiness.ps1 -SkipRuntime` 会检查 README 顶部的在线演示地址是否为真实 HTTPS URL，不能是示例占位。
+
 如果还没有拿到线上地址或视频链接，可以先运行状态汇总，看清楚剩余外部事项：
 
 ```powershell

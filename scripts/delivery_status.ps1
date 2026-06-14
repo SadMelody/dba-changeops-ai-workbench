@@ -110,7 +110,17 @@ function Get-JsonScriptDetail {
 
     if ($Result.exit_code -ne 0) {
         if ($Result.payload -and $Result.payload.failures) {
-            $failedNames = @($Result.payload.failures | Select-Object -ExpandProperty name)
+            $failedNames = @(
+                $Result.payload.failures |
+                    ForEach-Object {
+                        if ($_.PSObject.Properties["name"]) {
+                            $_.name
+                        }
+                        else {
+                            [string]$_
+                        }
+                    }
+            )
             if ($failedNames.Count -gt 0) {
                 return "$($Result.label) failed checks: " + ($failedNames -join ", ")
             }
@@ -123,7 +133,17 @@ function Get-JsonScriptDetail {
     }
 
     if ($Result.payload.failures) {
-        $failedNames = @($Result.payload.failures | Select-Object -ExpandProperty name)
+        $failedNames = @(
+            $Result.payload.failures |
+                ForEach-Object {
+                    if ($_.PSObject.Properties["name"]) {
+                        $_.name
+                    }
+                    else {
+                        [string]$_
+                    }
+                }
+        )
         if ($failedNames.Count -gt 0) {
             return "$($Result.label) failed checks: " + ($failedNames -join ", ")
         }
