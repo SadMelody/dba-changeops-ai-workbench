@@ -73,7 +73,7 @@ if (-not ($outputPath.StartsWith($rootPath) -or $outputPath.StartsWith([System.I
 New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
 
 $packageBaseName = "$Name-$Version"
-$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) $packageBaseName
+$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("$packageBaseName-staging-" + [System.Guid]::NewGuid().ToString("n"))
 $zipPath = Join-Path $outputPath "$packageBaseName.zip"
 $manifestPath = Join-Path $outputPath "$packageBaseName-manifest.json"
 
