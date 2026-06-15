@@ -226,13 +226,15 @@ Render/Railway/Fly.io 的基础配置：
 线上地址和备用视频准备好后，可以自动回填 README 顶部发布区：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl
 ```
 
 公开投递前，用线上地址和视频地址运行最终公开交付审计：
 
 ```powershell
-.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo
 ```
 
 该审计会同时访问线上应用和备用视频地址；视频链接如果是私有、过期、需要登录或返回 404，会被视为未完成公开交付。
@@ -241,7 +243,8 @@ Render/Railway/Fly.io 的基础配置：
 
 ```powershell
 .\scripts\delivery_status.ps1 -BaseUrl http://127.0.0.1:8000
-.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo -Strict
 ```
 
 视频暂缓时，可以先用真实 Demo 地址检查代码、样例材料和线上闭环；如果 README 顶部已经回填了在线演示地址，`-SkipRuntime` 会自动读取：
@@ -355,5 +358,5 @@ artifacts/samples/     可直接展示的样例交付包
 
 ## 下一步计划
 
-- 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -VideoUrl <视频地址> -CompleteDemo -Strict` 做严格公开交付审计。
+- 补充产品讲解视频，并用 `scripts/delivery_status.ps1 -VideoUrl $VideoUrl -CompleteDemo -Strict` 做严格公开交付审计。
 - 扩充真实评测样本，并逐步接入只读 DB2 检查账号、审批评论同步和具体 ITSM 字段映射。

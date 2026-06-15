@@ -150,13 +150,15 @@ py -B -m app.evaluation
 7. 回填 README：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl
 ```
 
 8. 跑最终公开交付状态：
 
 ```powershell
-.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo -Strict
 ```
 
 如果按当前策略暂缓视频，先运行：

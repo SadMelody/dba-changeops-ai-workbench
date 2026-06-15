@@ -162,13 +162,15 @@
 README 发布链接回填：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl
 ```
 
 公开交付总审计：
 
 ```powershell
-.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo
 ```
 
 该脚本不仅检查 README 是否回填链接，也会实际访问线上演示地址和备用视频地址。备用视频如果仍是私有链接、登录后可见链接或已过期分享链接，不算完成公开交付。

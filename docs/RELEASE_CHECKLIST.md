@@ -102,7 +102,8 @@ ITSM_WEBHOOK_TOKEN=
 最后运行公开交付审计，确认线上地址、视频链接、README 回填和本地发布材料都已就绪：
 
 ```powershell
-.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo
 ```
 
 视频链接需要是面试官无需登录即可访问的公开或半公开地址。审计脚本会实际访问该地址；如果视频链接返回 404、需要登录、权限不足或临时链接过期，就不要投递。

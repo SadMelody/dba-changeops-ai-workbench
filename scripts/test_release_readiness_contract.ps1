@@ -62,7 +62,7 @@ $coreDeliveryDocs = @(
     "docs/RELEASE_CHECKLIST.md"
 )
 
-$placeholderPattern = "your-app\.example\.com|your-video\.example\.com"
+$placeholderPattern = "your-app\.example\.com|your-video\.example\.com|<VideoUrl>|<视频地址>|<演示地址>"
 
 foreach ($path in $coreDeliveryDocs) {
     $fullPath = Join-Path $Root $path

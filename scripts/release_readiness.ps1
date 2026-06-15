@@ -106,7 +106,7 @@ function Get-ReleaseUrlPlaceholders {
         }
 
         $text = Get-Content -LiteralPath $fullPath -Raw
-        $matches = [regex]::Matches($text, "your-app\.example\.com|your-video\.example\.com")
+        $matches = [regex]::Matches($text, "your-app\.example\.com|your-video\.example\.com|<VideoUrl>|<视频地址>|<演示地址>")
         foreach ($match in $matches) {
             $placeholders.Add("${path}:$($match.Value)") | Out-Null
         }
