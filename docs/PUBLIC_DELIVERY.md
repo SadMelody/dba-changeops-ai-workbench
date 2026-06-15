@@ -27,30 +27,30 @@
 5. 等部署完成，打开：
 
 ```text
-https://your-app.example.com/
-https://your-app.example.com/demo
-https://your-app.example.com/ops
-https://your-app.example.com/healthz
+https://dba-changeops-ai-workbench.onrender.com/
+https://dba-changeops-ai-workbench.onrender.com/demo
+https://dba-changeops-ai-workbench.onrender.com/ops
+https://dba-changeops-ai-workbench.onrender.com/healthz
 ```
 
 6. 在线验收：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 7. 如需要严格公开投递，按 `docs/VIDEO_RECORDING_GUIDE.md` 录制 3-5 分钟视频，并上传到无需登录即可访问的位置。
 8. 回填 README 顶部链接；视频暂缓时只传 `DemoUrl`：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
 .\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com
 ```
 
 9. 最终公开交付审计：
 
 ```powershell
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
 ```
 
 只有上面命令返回 `ready: true`，才算严格意义上的公开投递完成。
@@ -98,7 +98,7 @@ https://your-app.example.com/healthz
 .\scripts\release_readiness.ps1 -SkipRuntime
 .\scripts\deploy_config_audit.ps1
 .\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
 ```
 
 发布就绪审计会拒绝 README 顶部仍是示例占位的在线演示地址；严格公开交付还需要补齐可访问的视频地址。
