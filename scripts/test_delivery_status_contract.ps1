@@ -85,6 +85,7 @@ try {
     if ($missingInputs.payload) {
         $remaining = @($missingInputs.payload.summary.remaining_external_inputs)
         $failureNames = @($missingInputs.payload.failures | Select-Object -ExpandProperty name)
+        $nextActionsText = (@($missingInputs.payload.next_actions) -join "`n")
         Add-Check "missing-inputs:not-ready" (-not [bool]$missingInputs.payload.ready) "strict public readiness should be false without external URLs"
         Add-Check "missing-inputs:not-demo-ready" (-not [bool]$missingInputs.payload.demo_ready) "demo readiness should be false without DemoUrl"
         Add-Check "missing-inputs:mode" ($missingInputs.payload.delivery_mode -eq "incomplete") "missing DemoUrl and VideoUrl should stay incomplete"
@@ -93,6 +94,8 @@ try {
         Add-Check "missing-inputs:online-demo-failure" ($failureNames -contains "online:demo") "online demo check should fail without DemoUrl"
         Add-Check "missing-inputs:online-video-failure" ($failureNames -contains "online:video") "online video check should fail without VideoUrl"
         Add-Check "missing-inputs:public-audit-failure" ($failureNames -contains "public:delivery-audit") "public delivery audit should fail until both URLs are available"
+        Add-Check "missing-inputs:copyable-video-action" ($nextActionsText -like "*Read-Host `"VideoUrl`"*") "next action should use a copyable PowerShell VideoUrl prompt"
+        Add-Check "missing-inputs:no-angle-placeholder-action" ($nextActionsText -notmatch "<VideoUrl>|<视频地址>|<演示地址>") "next action should not use angle-bracket URL placeholders"
     }
 
     $httpRejected = Invoke-DeliveryStatus @("-ReadmePath", $readme, "-SkipRuntime", "-DemoUrl", "http://example.test/demo")
