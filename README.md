@@ -220,19 +220,19 @@ Render/Railway/Fly.io 的基础配置：
 线上部署完成后，用真实地址运行发布验收：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 线上地址和备用视频准备好后，可以自动回填 README 顶部发布区：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
 ```
 
 公开投递前，用线上地址和视频地址运行最终公开交付审计：
 
 ```powershell
-.\scripts\public_delivery_audit.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo
 ```
 
 该审计会同时访问线上应用和备用视频地址；视频链接如果是私有、过期、需要登录或返回 404，会被视为未完成公开交付。
@@ -241,14 +241,14 @@ Render/Railway/Fly.io 的基础配置：
 
 ```powershell
 .\scripts\delivery_status.ps1 -BaseUrl http://127.0.0.1:8000
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
 ```
 
 视频暂缓时，可以先用真实 Demo 地址检查代码、样例材料和线上闭环；如果 README 顶部已经回填了在线演示地址，`-SkipRuntime` 会自动读取：
 
 ```powershell
 .\scripts\delivery_status.ps1 -CompleteDemo -SkipRuntime
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -CompleteDemo -SkipRuntime
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo -SkipRuntime
 ```
 
 这时重点看输出里的 `summary`：

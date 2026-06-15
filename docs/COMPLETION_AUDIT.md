@@ -155,19 +155,19 @@
 线上发布验收：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 README 发布链接回填：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
 ```
 
 公开交付总审计：
 
 ```powershell
-.\scripts\public_delivery_audit.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo
+.\scripts\public_delivery_audit.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo
 ```
 
 该脚本不仅检查 README 是否回填链接，也会实际访问线上演示地址和备用视频地址。备用视频如果仍是私有链接、登录后可见链接或已过期分享链接，不算完成公开交付。

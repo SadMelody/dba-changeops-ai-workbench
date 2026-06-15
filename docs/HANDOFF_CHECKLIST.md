@@ -143,20 +143,20 @@ py -B -m app.evaluation
 5. 用线上地址运行：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 6. 按 `docs/VIDEO_RECORDING_GUIDE.md` 录制 3-5 分钟演示视频，上传为无需登录即可访问的链接。
 7. 回填 README：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl>
 ```
 
 8. 跑最终公开交付状态：
 
 ```powershell
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl <VideoUrl> -CompleteDemo -Strict
 ```
 
 如果按当前策略暂缓视频，先运行：
