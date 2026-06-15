@@ -26,8 +26,9 @@ DBA ChangeOps AI 工作台需要满足两个演示场景：
 回填和审计命令：
 
 ```powershell
-.\scripts\update_release_links.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com
-.\scripts\delivery_status.ps1 -DemoUrl https://your-app.example.com -VideoUrl https://your-video.example.com -CompleteDemo -Strict
+$VideoUrl = Read-Host "VideoUrl"
+.\scripts\update_release_links.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl
+.\scripts\delivery_status.ps1 -DemoUrl https://dba-changeops-ai-workbench.onrender.com -VideoUrl $VideoUrl -CompleteDemo -Strict
 ```
 
 这条路径的原则是先证明产品闭环可在线打开，再决定是否接入真实模型。真实模型可以作为增强项，不应阻塞公开投递。
@@ -180,7 +181,7 @@ fly deploy
 也可以用脚本做一次自动化冒烟检查：
 
 ```powershell
-.\scripts\smoke_check.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\smoke_check.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 不加 `-CompleteDemo` 时只检查健康状态、运行状态页、状态 API 和演示台入口；加上后会额外跑一键完整闭环并校验 Markdown/PDF 导出。
@@ -188,7 +189,7 @@ fly deploy
 如果是面向简历或面试的公开发布，建议使用发布包装脚本：
 
 ```powershell
-.\scripts\verify_online_release.ps1 -BaseUrl https://your-app.example.com -CompleteDemo
+.\scripts\verify_online_release.ps1 -BaseUrl https://dba-changeops-ai-workbench.onrender.com -CompleteDemo
 ```
 
 它会复用冒烟检查，并提醒回填 README 在线演示地址、下载导出文件、更新备用演示视频和避免公开敏感信息。

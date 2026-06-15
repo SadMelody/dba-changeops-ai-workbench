@@ -57,6 +57,7 @@ function Invoke-ReleaseReadiness {
 $coreDeliveryDocs = @(
     "README.md",
     "docs/COMPLETION_AUDIT.md",
+    "docs/DEPLOYMENT.md",
     "docs/HANDOFF_CHECKLIST.md",
     "docs/PUBLIC_DELIVERY.md",
     "docs/RELEASE_CHECKLIST.md"

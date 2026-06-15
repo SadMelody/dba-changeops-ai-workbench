@@ -40,6 +40,12 @@ Use this file as the project boundary before making changes in this repository:
 - If existing local changes are present, assume they are user or prior-agent work;
   inspect them, build on them when relevant, and do not revert them without an
   explicit instruction.
+- When resuming a paused goal, do not restart a broad project audit by default.
+  Use the minimum current-state check needed to continue safely, usually
+  `git status --short --branch` plus the diff for files you are about to touch.
+- If the same external push/network failure has already been observed, attempt at
+  most one push per continuation unless the user explicitly asks for more
+  retries.
 
 ## Default Decision Rules
 
