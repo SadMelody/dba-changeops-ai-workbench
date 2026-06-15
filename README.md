@@ -261,9 +261,10 @@ Render/Railway/Fly.io 的基础配置：
 
 ```powershell
 .\scripts\test_delivery_status_contract.ps1
+.\scripts\test_release_readiness_contract.ps1
 ```
 
-该脚本会验证缺少 `DemoUrl`/`VideoUrl` 时不会误报 demo-ready，并确认非 localhost 的 `http://` 地址会被拒绝。
+这些脚本会验证缺少 `DemoUrl`/`VideoUrl` 时不会误报 demo-ready、非 localhost 的 `http://` 地址会被拒绝，并确认发布就绪审计仍保护核心交付文档不回退到模板 URL。
 
 需要单独检查部署配置一致性时：
 
