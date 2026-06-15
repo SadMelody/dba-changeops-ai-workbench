@@ -44,6 +44,8 @@ The application keeps audit evidence while reducing secret exposure:
   runs or call logs.
 - Common passwords, API keys, tokens, and database connection string passwords
   are redacted in audit payloads.
+- Authorization, Basic Auth, Cookie, credential, and session-style audit fields
+  are redacted before persistence.
 - Webhook dispatch uses the configured raw `ITSM_WEBHOOK_URL`, but persisted
   logs and API responses store a redacted URL.
 - Webhook URL query keys containing token/key/secret/signature/password markers

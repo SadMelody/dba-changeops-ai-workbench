@@ -22,8 +22,33 @@ SENSITIVE_TEXT_PATTERNS = [
         r"\1=***",
     ),
     (re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+"), "Bearer ***"),
+    (re.compile(r"(?i)\bBasic\s+[A-Za-z0-9._~+/=-]+"), "Basic ***"),
     (re.compile(r"(?i)(://[^:/@\s]+:)([^@\s/]+)(@)"), r"\1***\3"),
 ]
+
+SENSITIVE_KEY_MARKERS = (
+    "api_key",
+    "apikey",
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "pwd",
+)
+SENSITIVE_KEY_NAMES = {
+    "auth",
+    "authentication",
+    "authorization",
+    "basic_auth",
+    "bearer",
+    "cookie",
+    "credential",
+    "credentials",
+    "session",
+    "session_id",
+    "sessionid",
+    "set_cookie",
+}
 
 
 @dataclass
@@ -140,9 +165,8 @@ def sanitize_audit_payload(value: Any) -> Any:
 
 def _is_sensitive_key(key: str) -> bool:
     normalized = key.lower().replace("-", "_")
-    return any(
-        marker in normalized
-        for marker in ("api_key", "apikey", "token", "secret", "password", "passwd", "pwd")
+    return normalized in SENSITIVE_KEY_NAMES or any(
+        marker in normalized for marker in SENSITIVE_KEY_MARKERS
     )
 
 

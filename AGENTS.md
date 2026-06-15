@@ -23,6 +23,8 @@ Treat this as a productized workflow tool, not a generic chatbot demo.
 
 Use this file as the project boundary before making changes in this repository:
 
+- Start each work session by checking the current git state and reading the
+  task-relevant code/docs before editing.
 - If a request is ambiguous, choose the path that strengthens the DBA ChangeOps
   demo product instead of widening the product surface.
 - Keep implementation, documentation, demo artifacts, and release scripts aligned;
@@ -35,6 +37,9 @@ Use this file as the project boundary before making changes in this repository:
   infrastructure.
 - Treat unverified public claims as defects. A URL, video, integration, or model
   path is only "ready" after the relevant check has passed.
+- If existing local changes are present, assume they are user or prior-agent work;
+  inspect them, build on them when relevant, and do not revert them without an
+  explicit instruction.
 
 ## Default Decision Rules
 
@@ -79,6 +84,22 @@ Do not expand the project into these areas unless the user explicitly asks:
 When extending work-order integration, keep the generic boundary clear:
 standard payloads and generic Webhook transport are in scope; vendor-specific
 Jira/ServiceNow/enterprise approval semantics are a later adapter layer.
+
+## Workflow Boundary
+
+Protect the core product loop before adding anything else:
+
+1. Import or describe a DBA change request.
+2. Generate reviewable delivery materials through the LLM adapter or offline
+   DB2 fixture fallback.
+3. Review, edit, diff, approve, and sign off on the generated materials.
+4. Export evidence and optionally write back a sanitized status payload to a
+   generic external work-order endpoint.
+5. Keep audit records useful for demo review without exposing credentials,
+   private URLs, raw provider secrets, or sensitive external response bodies.
+
+Changes that do not support this loop should be deferred unless the user
+explicitly asks for them.
 
 ## Current Improvement Priorities
 
@@ -143,6 +164,17 @@ the user explicitly re-enables it.
 For project-completion work, do not mark the overall goal complete while any
 required external delivery input is still pending. Instead, report the verified
 state and the exact remaining input.
+
+## Evidence And Demo Discipline
+
+- Prefer reproducible local evidence over screenshots or claims that cannot be
+  regenerated from the repository.
+- Keep demo artifacts, release scripts, and documentation synchronized when
+  public status changes.
+- If a public demo URL is available, verify it before recording it as `DemoUrl`.
+- If walkthrough video production is skipped, keep `VideoUrl` explicitly
+  `pending` and do not downgrade the runnable demo for that reason alone.
+- If a check is skipped, final reports and docs must say what was not verified.
 
 ## Engineering Rules
 

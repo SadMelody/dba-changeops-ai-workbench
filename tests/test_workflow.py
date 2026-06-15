@@ -165,17 +165,20 @@ def test_load_dotenv_reads_local_env_without_overriding_existing_values(
 def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
     payload = {
         "Authorization": "Bearer sk-test-token",
+        "Basic-Auth": "Basic dXNlcjpwYXNz",
+        "Cookie": "session=browser-cookie",
         "database_url": "postgresql+psycopg://dba:plain-password@db.example.com:5432/changeops",
         "messages": [
             {
                 "content": (
                     "执行脚本：CONNECT TO PROD USER dba USING password=secret123; "
-                    "token: abc.def.ghi"
+                    "token: abc.def.ghi Authorization: Basic dXNlcjpwYXNz Bearer sk-inline-token"
                 )
             }
         ],
         "nested": {
             "api_key": "qwen-secret-key",
+            "session_id": "session-secret",
             "safe": "保留普通审计字段",
         },
     }
@@ -185,13 +188,22 @@ def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
     serialized = json.dumps(sanitized, ensure_ascii=False)
     assert "sk-test-token" not in serialized
     assert "plain-password" not in serialized
+    assert "browser-cookie" not in serialized
     assert "secret123" not in serialized
     assert "abc.def.ghi" not in serialized
+    assert "dXNlcjpwYXNz" not in serialized
+    assert "sk-inline-token" not in serialized
     assert "qwen-secret-key" not in serialized
+    assert "session-secret" not in serialized
     assert "Bearer ***" in serialized
+    assert "Basic ***" in serialized
     assert "postgresql+psycopg://dba:***@db.example.com:5432/changeops" in serialized
+    assert sanitized["Authorization"] == "***"
+    assert sanitized["Basic-Auth"] == "***"
+    assert sanitized["Cookie"] == "***"
     assert "api_key" in sanitized["nested"]
     assert sanitized["nested"]["api_key"] == "***"
+    assert sanitized["nested"]["session_id"] == "***"
     assert sanitized["nested"]["safe"] == "保留普通审计字段"
 
 
