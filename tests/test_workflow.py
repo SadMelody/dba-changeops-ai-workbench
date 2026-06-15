@@ -292,6 +292,31 @@ def test_llm_client_falls_back_when_provider_times_out() -> None:
     assert set(result.data["artifacts"]) == set(ARTIFACT_TITLES)
 
 
+def test_llm_client_redacts_sensitive_provider_error_message() -> None:
+    case = make_case()
+    error = httpx.ConnectError(
+        "provider failed for https://llm.example.test/v1/chat/completions"
+        "?api_key=provider-secret with Bearer sk-provider-token and password=plain-secret"
+    )
+
+    def factory(timeout: float) -> FakeHTTPClient:
+        return FakeHTTPClient(error=error)
+
+    result = LLMClient(
+        settings=make_settings(api_key="test-key"),
+        http_client_factory=factory,
+    ).analyze_change(case)
+
+    assert result.status == "fallback"
+    assert result.error_message is not None
+    assert "provider-secret" not in result.error_message
+    assert "sk-provider-token" not in result.error_message
+    assert "plain-secret" not in result.error_message
+    assert "api_key=***" in result.error_message
+    assert "Bearer ***" in result.error_message
+    assert "password=***" in result.error_message
+
+
 def test_fixture_analysis_uses_db2_scenario_specific_templates() -> None:
     for fixture in DEMO_CASES:
         case = Case(**{key: value for key, value in fixture.items() if hasattr(Case, key)})
@@ -916,6 +941,41 @@ def test_dispatch_work_order_writeback_reports_webhook_http_failure() -> None:
         }
     else:
         raise AssertionError("Expected WorkOrderWritebackError for non-success webhook response")
+
+
+def test_dispatch_work_order_writeback_redacts_network_error_message() -> None:
+    payload = {"action": "work_order_delivery_writeback"}
+    raw_webhook_url = (
+        "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible"
+    )
+    settings = SimpleNamespace(
+        itsm_webhook_url=raw_webhook_url,
+        itsm_webhook_token="secret-token",
+    )
+    error = httpx.ConnectError(
+        "connect failed for https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible with Bearer secret-token"
+    )
+
+    def factory(timeout: float) -> FakeHTTPClient:
+        return FakeHTTPClient(error=error)
+
+    try:
+        dispatch_work_order_writeback(payload, settings, http_client_factory=factory)
+    except WorkOrderWritebackError as exc:
+        serialized = json.dumps(exc.response_payload, ensure_ascii=False)
+        assert "hook-password" not in str(exc)
+        assert "secret-token" not in str(exc)
+        assert "hook-password" not in serialized
+        assert "secret-token" not in serialized
+        assert "Bearer ***" in str(exc)
+        assert exc.response_payload["url"] == (
+            "https://hook-user:***@itsm.example.test/webhook/changeops"
+            "?token=%2A%2A%2A&safe=visible"
+        )
+    else:
+        raise AssertionError("Expected WorkOrderWritebackError for webhook network failure")
 
 
 def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> None:

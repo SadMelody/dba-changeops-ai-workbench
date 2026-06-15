@@ -40,6 +40,8 @@ working directories are excluded from git and release packages.
 The application keeps audit evidence while reducing secret exposure:
 
 - LLM request and response payloads are sanitized before persistence.
+- LLM provider failure messages are sanitized before they are stored in analysis
+  runs or call logs.
 - Common passwords, API keys, tokens, and database connection string passwords
   are redacted in audit payloads.
 - Webhook dispatch uses the configured raw `ITSM_WEBHOOK_URL`, but persisted
@@ -50,6 +52,8 @@ The application keeps audit evidence while reducing secret exposure:
 - External work-order URLs are normalized through the same URL redaction rules
   before they are stored in case context or returned in writeback payloads.
 - External Webhook response bodies are sanitized before they are stored in
+  writeback logs or returned through JSON APIs.
+- Webhook network failure messages are sanitized before they are stored in
   writeback logs or returned through JSON APIs.
 
 These rules are regression-tested in `tests/test_workflow.py`.

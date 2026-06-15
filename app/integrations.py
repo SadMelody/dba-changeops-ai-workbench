@@ -382,8 +382,9 @@ def dispatch_work_order_writeback(
         with http_client_factory(timeout=timeout) as client:
             response = client.post(webhook_url, headers=headers, json=payload)
     except httpx.HTTPError as exc:
+        error_message = sanitize_audit_payload(f"ITSM Webhook 回写失败：{exc}")
         raise WorkOrderWritebackError(
-            f"ITSM Webhook 回写失败：{exc}",
+            str(error_message),
             {
                 "configured": True,
                 "url": sanitize_webhook_url(webhook_url),

@@ -106,6 +106,7 @@ class LLMClient:
         except Exception as exc:  # Keep live demos resilient when providers fail.
             latency_ms = int((time.perf_counter() - start) * 1000)
             data = fixture_analysis(case)
+            error_message = sanitize_audit_payload(str(exc))
             return LLMResult(
                 provider="openai-compatible",
                 model=self.settings.llm_model,
@@ -114,7 +115,7 @@ class LLMClient:
                 request_payload=sanitize_audit_payload(request_payload),
                 response_payload=sanitize_audit_payload(data),
                 data=data,
-                error_message=str(exc),
+                error_message=str(error_message),
             )
 
 
