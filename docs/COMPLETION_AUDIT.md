@@ -20,7 +20,7 @@
 | 工单回写 payload | `GET /api/integrations/work-orders/runs/{run_id}/writeback-payload`、`build_work_order_writeback_payload` | 工单回写测试 |
 | ITSM Webhook 回写 | `POST /api/integrations/work-orders/runs/{run_id}/writeback`、`dispatch_work_order_writeback`、`ITSM_WEBHOOK_URL` | Webhook 回写测试 |
 | 工单回写日志和重试 | `work_order_writeback_logs`、`GET /api/integrations/work-orders/runs/{run_id}/writebacks`、`POST /api/integrations/work-orders/writebacks/{log_id}/retry` | 回写失败与重试测试 |
-| Webhook 审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload`、`work_order_writeback_logs` | URL 密钥、Basic Auth 密码和外部响应体脱敏测试 |
+| Webhook 审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload`、`work_order_writeback_logs` | URL 密钥、Basic Auth 密码、Authorization/Cookie/session 字段和外部响应体脱敏测试 |
 | 案例列表和详情页 | `/`、`/cases/{id}`、`GET /api/cases`、`GET /api/cases/{id}`、`app/templates/home.html`、`app/templates/case_detail.html` | 工作流测试、首页测试、中文界面审计 |
 | AI 分析触发 | `POST /api/cases/{id}/analyze`、`POST /cases/{id}/analyze` | 工作流测试、冒烟脚本 |
 | 历史分析记录 | `GET /api/cases/{id}/runs`、`analysis_runs` | 工作流测试 |
@@ -96,8 +96,8 @@
 | 无 Key 兜底 | `fixture_analysis`、`LLMClient.analyze_change` | 兜底测试 |
 | 调用失败兜底 | `LLMClient.analyze_change` | 超时兜底测试 |
 | 结构化输出 | `normalize_response`、`ARTIFACT_TITLES` | 结构化输出测试 |
-| LLM 审计脱敏 | `sanitize_audit_payload` | LLM payload 脱敏测试 |
-| 工单回写审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload` | Webhook URL 查询密钥、Basic Auth 密码和外部响应体脱敏测试 |
+| LLM 审计脱敏 | `sanitize_audit_payload` | LLM payload、Authorization/Cookie/session 字段和 provider 异常脱敏测试 |
+| 工单回写审计脱敏 | `sanitize_webhook_url`、`sanitize_audit_payload` | Webhook URL 查询密钥、Basic Auth 密码、Authorization/Cookie/session 字段和外部响应体脱敏测试 |
 | 离线场景评测 | `evaluate_demo_fixtures`、`SCENARIO_MARKERS` | 11 个 DB2 场景结构和关键标记评测 |
 
 ## 文档和交付资产
