@@ -134,6 +134,7 @@ $requiredFiles = @(
     "scripts/update_release_links.ps1",
     "scripts/public_delivery_audit.ps1",
     "scripts/delivery_status.ps1",
+    "scripts/test_delivery_status_contract.ps1",
     "scripts/generate_demo_exports.ps1",
     "scripts/clean_release_artifacts.ps1",
     "artifacts/samples/changeops-demo-delivery.md",

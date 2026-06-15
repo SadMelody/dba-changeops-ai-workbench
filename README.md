@@ -257,6 +257,14 @@ Render/Railway/Fly.io 的基础配置：
 - `delivery_mode: "demo-only"` 表示当前是“可演示但非严格公开交付”。
 - 总 `ready` 仍会保持 `false`，直到补齐可访问的备用视频并通过严格公开交付审计。
 
+如需在不访问外网的情况下回归交付状态语义，可以运行：
+
+```powershell
+.\scripts\test_delivery_status_contract.ps1
+```
+
+该脚本会验证缺少 `DemoUrl`/`VideoUrl` 时不会误报 demo-ready，并确认非 localhost 的 `http://` 地址会被拒绝。
+
 需要单独检查部署配置一致性时：
 
 ```powershell

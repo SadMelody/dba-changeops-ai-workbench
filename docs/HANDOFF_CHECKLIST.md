@@ -118,6 +118,7 @@ py -B -m app.evaluation
 | README 发布链接回填 | `scripts/update_release_links.ps1` |
 | 公开交付总审计 | `scripts/public_delivery_audit.ps1` |
 | 当前交付状态汇总 | `scripts/delivery_status.ps1` |
+| 交付状态契约测试 | `scripts/test_delivery_status_contract.ps1` |
 | 项目边界与 Agent 协作规则 | `AGENTS.md` |
 | 需求覆盖审计 | `docs/COMPLETION_AUDIT.md` |
 | 样例交付包 | `scripts/generate_demo_exports.ps1`、`artifacts/samples/` |
@@ -168,6 +169,12 @@ py -B -m app.evaluation
 README 顶部已有真实在线演示地址时，第一条命令会自动使用该地址；第二条命令用于显式指定候选部署地址。
 
 输出 `summary.demo_ready: true` 时，说明代码、样例材料和线上 Demo 已可面试展示；输出 `ready: false` 和 `delivery_mode: "demo-only"` 是因为严格公开交付仍缺备用视频。`summary.remaining_external_inputs` 会列出后续还需要补齐的外部输入。
+
+如需在不访问外网的情况下检查交付状态脚本的基本语义，运行：
+
+```powershell
+.\scripts\test_delivery_status_contract.ps1
+```
 
 ## 交付口径
 

@@ -130,6 +130,11 @@ ITSM_WEBHOOK_TOKEN=
 ```
 
 README 顶部已经回填在线演示地址时，`-SkipRuntime` 会自动读取 `DemoUrl`；显式 `-DemoUrl` 用于检查其他候选部署。
+修改交付状态脚本后，运行不访问外网的契约测试：
+
+```powershell
+.\scripts\test_delivery_status_contract.ps1
+```
 
 手工检查：
 
