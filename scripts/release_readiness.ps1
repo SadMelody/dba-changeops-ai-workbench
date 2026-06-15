@@ -95,6 +95,26 @@ function Get-ReleaseResidues {
     return $residues | Sort-Object
 }
 
+function Get-ReleaseUrlPlaceholders {
+    param([string[]]$Paths)
+
+    $placeholders = New-Object System.Collections.Generic.List[string]
+    foreach ($path in $Paths) {
+        $fullPath = Join-Path $projectRoot $path
+        if (-not (Test-Path -LiteralPath $fullPath)) {
+            continue
+        }
+
+        $text = Get-Content -LiteralPath $fullPath -Raw
+        $matches = [regex]::Matches($text, "your-app\.example\.com|your-video\.example\.com")
+        foreach ($match in $matches) {
+            $placeholders.Add("${path}:$($match.Value)") | Out-Null
+        }
+    }
+
+    return $placeholders | Sort-Object -Unique
+}
+
 $requiredFiles = @(
     "AGENTS.md",
     "SECURITY.md",
@@ -171,6 +191,16 @@ if (Test-Path -LiteralPath $readme) {
     Add-Check "readme:api-doc" ($readmeText.Contains("docs/API.md")) "README should link API docs"
     Add-Check "readme:release-checklist" ($readmeText.Contains("docs/RELEASE_CHECKLIST.md")) "README should link release checklist"
 }
+
+$releaseUrlDocs = @(
+    "README.md",
+    "docs/COMPLETION_AUDIT.md",
+    "docs/HANDOFF_CHECKLIST.md",
+    "docs/PUBLIC_DELIVERY.md",
+    "docs/RELEASE_CHECKLIST.md"
+)
+$releaseUrlPlaceholders = @(Get-ReleaseUrlPlaceholders $releaseUrlDocs)
+Add-Check "docs:release-url-placeholders" ($releaseUrlPlaceholders.Count -eq 0) ("public delivery docs should use the verified DemoUrl and explicit VideoUrl input: " + ($releaseUrlPlaceholders -join ", "))
 
 $packageScript = Join-Path $PSScriptRoot "package_release.ps1"
 $packageTemp = Join-Path ([System.IO.Path]::GetTempPath()) ("changeops-readiness-package-" + [System.Guid]::NewGuid().ToString("n"))

@@ -215,7 +215,7 @@ Render/Railway/Fly.io 的基础配置：
 .\scripts\release_readiness.ps1 -BaseUrl http://127.0.0.1:8000
 ```
 
-这个检查会要求 README 顶部已经回填真实 HTTPS 在线演示地址，并要求 `.env`、本地数据库、日志、进程 pid 文件和 Python 缓存已经清理，适合作为公开提交或打包前的最后一道门。
+这个检查会要求 README 顶部已经回填真实 HTTPS 在线演示地址，核心交付文档不再残留示例 DemoUrl，并要求 `.env`、本地数据库、日志、进程 pid 文件和 Python 缓存已经清理，适合作为公开提交或打包前的最后一道门。
 
 线上部署完成后，用真实地址运行发布验收：
 
