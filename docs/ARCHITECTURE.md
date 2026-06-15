@@ -144,7 +144,7 @@ erDiagram
 - `work_order_writeback_logs`：外部工单 Webhook 发送记录，包括 attempt 次数、目标状态、请求 payload、脱敏后的响应 payload 和失败原因。
 - 审计 payload 落库前会做轻量脱敏，避免公开演示或试运行时把误贴的口令、Token、API Key、Webhook 查询密钥或 Basic Auth 密码原样保存。
 - `demo_fixtures`：内置合成案例，保证无外部依赖也能试跑。
-- 外部工单导入当前复用 `cases`，把工单号、链接、标签和元数据写入业务背景；回写 payload 从这些来源信息和 `analysis_runs` 的交付/签收状态生成，通用 Webhook 发送层只负责认证头和 HTTP 投递。后续接入具体 ITSM 时再增加专用外部映射表、字段适配器和厂商状态机。
+- 外部工单导入当前复用 `cases`，把工单号、脱敏后的链接、标签和元数据写入业务背景；回写 payload 从这些来源信息和 `analysis_runs` 的交付/签收状态生成，通用 Webhook 发送层只负责认证头和 HTTP 投递。后续接入具体 ITSM 时再增加专用外部映射表、字段适配器和厂商状态机。
 
 ## AI 工作流
 

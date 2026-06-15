@@ -47,6 +47,8 @@ The application keeps audit evidence while reducing secret exposure:
 - Webhook URL query keys containing token/key/secret/signature/password markers
   are redacted.
 - Basic Auth passwords in Webhook URLs are redacted.
+- External work-order URLs are normalized through the same URL redaction rules
+  before they are stored in case context or returned in writeback payloads.
 - External Webhook response bodies are sanitized before they are stored in
   writeback logs or returned through JSON APIs.
 

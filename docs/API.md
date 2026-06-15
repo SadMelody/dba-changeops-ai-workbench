@@ -219,6 +219,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `database_type`/`db_type`、`system`/`target_system`、`category`/`change_type` 等字段会映射到内部案例字段。
 - `operation_commands` 可传字符串数组；如果已经有完整 SQL，也可以直接传 `source_sql`、`sql` 或 `change_script`。
 - `labels` 和 `metadata` 会写入业务背景，方便后续人工复核追溯来源。
+- `ticket_url`、`external_url` 或 `url` 会写入业务背景和回写 payload，但 URL 查询串中的 token/key/secret/signature/password 类字段以及 Basic Auth 密码会先脱敏。
 - `run_analysis: true` 会在导入后立即生成交付方案；不传则只创建案例。
 
 状态码：

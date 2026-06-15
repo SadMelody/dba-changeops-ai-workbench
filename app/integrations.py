@@ -179,10 +179,11 @@ def normalize_work_order_payload(data: dict[str, Any]) -> dict[str, Any]:
     labels = _string_list(data, "labels")
     metadata = _metadata_lines(data.get("metadata"))
     external_url = _text(data, "external_url", "ticket_url", "url")
+    safe_external_url = sanitize_webhook_url(external_url)
 
     source_header = [f"外部工单：{external_id}"]
-    if external_url:
-        source_header.append(f"工单链接：{external_url}")
+    if safe_external_url:
+        source_header.append(f"工单链接：{safe_external_url}")
     if labels:
         source_header.append(f"工单标签：{', '.join(labels)}")
     if metadata:
@@ -220,7 +221,7 @@ def normalize_work_order_payload(data: dict[str, Any]) -> dict[str, Any]:
         "case_data": case_data,
         "source": {
             "external_id": external_id,
-            "external_url": external_url,
+            "external_url": safe_external_url,
             "labels": labels,
         },
         "run_analysis": _bool(data, "run_analysis"),

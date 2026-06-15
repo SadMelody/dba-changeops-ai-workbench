@@ -665,6 +665,58 @@ def test_work_order_import_maps_external_payload_and_can_analyze() -> None:
     assert "访问计划" in artifact_text
 
 
+def test_work_order_import_redacts_sensitive_external_url() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    raw_url = (
+        "https://ticket-user:ticket-password@itsm.example.test/changes/CHG-20260613-012"
+        "?token=secret-token&safe=visible&api_key=secret-key"
+    )
+    sanitized_url = (
+        "https://ticket-user:***@itsm.example.test/changes/CHG-20260613-012"
+        "?token=%2A%2A%2A&safe=visible&api_key=%2A%2A%2A"
+    )
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260613-012",
+            "external_url": raw_url,
+            "title": "DB2 外部链接脱敏验证",
+            "database_type": "DB2 LUW",
+            "target_system": "核心账务",
+            "change_type": "审计边界验证",
+            "run_analysis": True,
+        },
+    )
+
+    assert import_response.status_code == 200
+    import_payload = import_response.json()
+    serialized_import = json.dumps(import_payload, ensure_ascii=False)
+    assert import_payload["source"]["external_url"] == sanitized_url
+    assert "ticket-password" not in serialized_import
+    assert "secret-token" not in serialized_import
+    assert "secret-key" not in serialized_import
+
+    case_response = client.get(f"/api/cases/{import_payload['case']['id']}")
+    assert case_response.status_code == 200
+    case_payload = case_response.json()
+    assert f"工单链接：{sanitized_url}" in case_payload["business_context"]
+    assert raw_url not in json.dumps(case_payload, ensure_ascii=False)
+
+    writeback_response = client.get(
+        f"/api/integrations/work-orders/runs/{import_payload['run']['id']}/writeback-payload"
+    )
+    assert writeback_response.status_code == 200
+    writeback_payload = writeback_response.json()
+    serialized_writeback = json.dumps(writeback_payload, ensure_ascii=False)
+    assert writeback_payload["source"]["external_url"] == sanitized_url
+    assert "ticket-password" not in serialized_writeback
+    assert "secret-token" not in serialized_writeback
+    assert "secret-key" not in serialized_writeback
+
+
 def test_work_order_import_rejects_missing_external_id() -> None:
     reset_db()
     client = TestClient(app)
