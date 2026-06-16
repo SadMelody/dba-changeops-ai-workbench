@@ -57,17 +57,23 @@ function Invoke-DeliveryStatus {
 }
 
 function New-TestReadme {
-    param([string]$Directory)
+    param(
+        [string]$Directory,
+        [string]$DemoUrl = "",
+        [string]$VideoUrl = ""
+    )
 
+    $videoLine = if ([string]::IsNullOrWhiteSpace($VideoUrl)) { "" } else { "- [3-5 分钟备用演示视频]($VideoUrl)" }
     $path = Join-Path $Directory "README.md"
     @"
 # DBA ChangeOps AI 工作台
 
-在线演示：
+在线演示：$DemoUrl
 备用材料：
 
 - artifacts/samples/changeops-demo-delivery.md
 - artifacts/samples/changeops-demo-delivery.pdf
+$videoLine
 "@ | Set-Content -LiteralPath $path -Encoding UTF8
     return $path
 }
@@ -101,6 +107,18 @@ try {
     $httpRejected = Invoke-DeliveryStatus @("-ReadmePath", $readme, "-SkipRuntime", "-DemoUrl", "http://example.test/demo")
     Add-Check "http-url:exit-nonzero" ($httpRejected.exit_code -ne 0) "non-local http DemoUrl should fail unless -AllowHttp is supplied"
     Add-Check "http-url:message" ($httpRejected.raw -like "*DemoUrl should use https://*") "http rejection should explain the HTTPS requirement"
+
+    $inferredReadme = New-TestReadme $tempRoot "http://127.0.0.1:9" "http://127.0.0.1:9/video"
+    $inferredInputs = Invoke-DeliveryStatus @("-ReadmePath", $inferredReadme, "-SkipRuntime")
+    Add-Check "readme-inferred-inputs:exit-zero" ($inferredInputs.exit_code -eq 0) "non-strict status should stay parseable when README URLs are inferred but unreachable"
+    Add-Check "readme-inferred-inputs:json" ($null -ne $inferredInputs.payload) "README-inferred status should return parseable JSON"
+    if ($inferredInputs.payload) {
+        $remaining = @($inferredInputs.payload.summary.remaining_external_inputs)
+        Add-Check "readme-inferred-inputs:demo-source" ($inferredInputs.payload.demo_url_source -eq "README") "DemoUrl should be inferred from README when omitted"
+        Add-Check "readme-inferred-inputs:video-source" ($inferredInputs.payload.video_url_source -eq "README") "VideoUrl should be inferred from README when omitted"
+        Add-Check "readme-inferred-inputs:no-raw-demo-input" ($remaining -notcontains "DemoUrl") "inferred DemoUrl should not be reported as a missing external input"
+        Add-Check "readme-inferred-inputs:no-raw-video-input" ($remaining -notcontains "VideoUrl") "inferred VideoUrl should not be reported as a missing external input"
+    }
 
     $networkFailure = Invoke-DeliveryStatus @("-ReadmePath", $readme, "-SkipRuntime", "-DemoUrl", "https://127.0.0.1:9")
     Add-Check "online-demo-network-failure:exit-zero" ($networkFailure.exit_code -eq 0) "non-strict status should preserve JSON output when online verification cannot connect"
