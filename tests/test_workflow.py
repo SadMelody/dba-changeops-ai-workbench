@@ -712,10 +712,12 @@ def test_work_order_import_redacts_sensitive_external_url() -> None:
     raw_url = (
         "https://ticket-user:ticket-password@itsm.example.test/changes/CHG-20260613-012"
         "?token=secret-token&safe=visible&api_key=secret-key"
+        "#/detail?access_token=fragment-secret&safe=visible"
     )
     sanitized_url = (
         "https://ticket-user:***@itsm.example.test/changes/CHG-20260613-012"
         "?token=%2A%2A%2A&safe=visible&api_key=%2A%2A%2A"
+        "#/detail?access_token=%2A%2A%2A&safe=visible"
     )
 
     import_response = client.post(
@@ -738,6 +740,7 @@ def test_work_order_import_redacts_sensitive_external_url() -> None:
     assert "ticket-password" not in serialized_import
     assert "secret-token" not in serialized_import
     assert "secret-key" not in serialized_import
+    assert "fragment-secret" not in serialized_import
 
     case_response = client.get(f"/api/cases/{import_payload['case']['id']}")
     assert case_response.status_code == 200
@@ -755,6 +758,7 @@ def test_work_order_import_redacts_sensitive_external_url() -> None:
     assert "ticket-password" not in serialized_writeback
     assert "secret-token" not in serialized_writeback
     assert "secret-key" not in serialized_writeback
+    assert "fragment-secret" not in serialized_writeback
 
 
 def test_work_order_import_rejects_missing_external_id() -> None:
