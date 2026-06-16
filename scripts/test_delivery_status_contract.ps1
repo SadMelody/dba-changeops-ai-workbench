@@ -109,6 +109,7 @@ try {
         $onlineDemoFailure = @($networkFailure.payload.failures | Where-Object { $_.name -eq "online:demo" } | Select-Object -First 1)
         Add-Check "online-demo-network-failure:detail-present" ($onlineDemoFailure.Count -eq 1 -and $onlineDemoFailure[0].detail -like "*verify_online_release.ps1 failed with exit code*:*") "online demo failure should include child script failure detail"
         Add-Check "online-demo-network-failure:not-opaque" ($onlineDemoFailure.Count -eq 1 -and $onlineDemoFailure[0].detail -notmatch "failed with exit code 1$") "online demo failure should not collapse to an opaque exit code"
+        Add-Check "online-demo-network-failure:no-powershell-gutter" ($onlineDemoFailure.Count -eq 1 -and $onlineDemoFailure[0].detail -notmatch ":\s*\|") "online demo failure should trim PowerShell error gutter markers"
     }
 }
 finally {

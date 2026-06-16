@@ -111,7 +111,7 @@ function Format-RawScriptFailure {
     $lines = @(
         $Result.raw -split "`r?`n" |
             ForEach-Object {
-                ($_ -replace "`e\[[0-9;]*[A-Za-z]", "").Trim()
+                ($_ -replace "`e\[[0-9;]*[A-Za-z]", "" -replace "^\s*\|\s*", "").Trim()
             } |
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_) -and
