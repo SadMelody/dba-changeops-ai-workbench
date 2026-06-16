@@ -57,6 +57,27 @@ def _is_sensitive_url_query_key(key: str) -> bool:
     return any(marker in normalized for marker in SENSITIVE_URL_QUERY_MARKERS)
 
 
+def _sanitize_url_params(params: str) -> str:
+    return urlencode(
+        [
+            (key, "***" if _is_sensitive_url_query_key(key) else value)
+            for key, value in parse_qsl(params, keep_blank_values=True)
+        ],
+        doseq=True,
+    )
+
+
+def _sanitize_url_fragment(fragment: str) -> str:
+    if not fragment or "=" not in fragment:
+        return fragment
+
+    prefix, separator, params = fragment.partition("?")
+    if separator:
+        return prefix + separator + _sanitize_url_params(params)
+
+    return _sanitize_url_params(fragment)
+
+
 def sanitize_webhook_url(url: str) -> str:
     url = (url or "").strip()
     if not url:
@@ -66,20 +87,15 @@ def sanitize_webhook_url(url: str) -> str:
     except ValueError:
         return sanitize_audit_payload(url)
 
-    query = urlencode(
-        [
-            (key, "***" if _is_sensitive_url_query_key(key) else value)
-            for key, value in parse_qsl(parts.query, keep_blank_values=True)
-        ],
-        doseq=True,
-    )
+    query = _sanitize_url_params(parts.query)
+    fragment = _sanitize_url_fragment(parts.fragment)
     try:
         username = parts.username
         password = parts.password
         hostname = parts.hostname
         port = parts.port
     except ValueError:
-        return urlunsplit((parts.scheme, sanitize_audit_payload(parts.netloc), parts.path, query, parts.fragment))
+        return urlunsplit((parts.scheme, sanitize_audit_payload(parts.netloc), parts.path, query, fragment))
 
     netloc = parts.netloc
     if username or password:
@@ -92,7 +108,7 @@ def sanitize_webhook_url(url: str) -> str:
         if password is not None:
             userinfo = f"{userinfo}:***"
         netloc = f"{userinfo}@{host}" if userinfo else host
-    return urlunsplit((parts.scheme, netloc, parts.path, query, parts.fragment))
+    return urlunsplit((parts.scheme, netloc, parts.path, query, fragment))
 
 
 def _text(data: dict[str, Any], *keys: str, default: str = "") -> str:

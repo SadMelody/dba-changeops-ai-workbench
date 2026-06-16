@@ -211,15 +211,18 @@ def test_sanitize_webhook_url_redacts_query_secrets_and_basic_auth() -> None:
     sanitized = sanitize_webhook_url(
         "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
         "?token=secret-token&safe=visible&signature=abc123"
+        "#/callback?access_token=fragment-secret&safe=visible"
     )
 
     assert sanitized == (
         "https://hook-user:***@itsm.example.test/webhook/changeops"
         "?token=%2A%2A%2A&safe=visible&signature=%2A%2A%2A"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
     )
     assert "hook-password" not in sanitized
     assert "secret-token" not in sanitized
     assert "abc123" not in sanitized
+    assert "fragment-secret" not in sanitized
 
 
 def test_llm_client_uses_fixture_when_api_key_is_missing() -> None:

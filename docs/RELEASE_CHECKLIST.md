@@ -63,7 +63,7 @@ ITSM_WEBHOOK_TOKEN=
 ```
 
 如果暂时没有模型 Key，可以不配置 `LLM_API_KEY`。系统会进入离线兜底模式，但仍然能完整生成、确认、签收和导出交付包。
-如果暂时没有真实 ITSM Webhook，可以不配置 `ITSM_WEBHOOK_URL`。系统仍可生成回写 payload；主动回写接口会明确返回未配置提示。配置 Webhook 后，每次发送和失败重试都会写入 `work_order_writeback_logs`，便于排查外部系统问题；日志和 API 会保存脱敏后的 Webhook URL、外部响应体和异常消息，不会原样展示查询密钥、Bearer Token、Basic Auth 密码或 Authorization/Cookie/session 字段。
+如果暂时没有真实 ITSM Webhook，可以不配置 `ITSM_WEBHOOK_URL`。系统仍可生成回写 payload；主动回写接口会明确返回未配置提示。配置 Webhook 后，每次发送和失败重试都会写入 `work_order_writeback_logs`，便于排查外部系统问题；日志和 API 会保存脱敏后的 Webhook URL、外部响应体和异常消息，不会原样展示查询串/fragment 密钥、Bearer Token、Basic Auth 密码或 Authorization/Cookie/session 字段。
 
 部署平台变量填写口径：
 

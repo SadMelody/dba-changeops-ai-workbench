@@ -43,7 +43,7 @@ flowchart LR
 - LLM 调用封装在 `app/llm.py`，业务层不绑定具体模型厂商。
 - 模型失败不阻断主流程，系统会写入调用日志并使用兜底输出。
 - LLM 请求和响应进入审计日志前会递归脱敏，遮蔽常见密码、Token、API Key、Authorization/Cookie/session 字段和连接串口令。
-- 工单 Webhook 发送仍使用真实配置；写入日志/API 的 Webhook URL、外部响应体和异常消息会先脱敏，避免查询密钥、Basic Auth 密码、Authorization/Cookie/session 字段或回显 Token 被公开展示。
+- 工单 Webhook 发送仍使用真实配置；写入日志/API 的 Webhook URL、外部响应体和异常消息会先脱敏，避免查询串/fragment 密钥、Basic Auth 密码、Authorization/Cookie/session 字段或回显 Token 被公开展示。
 - 兜底输出不是单一静态文本，会按案例类型生成 DB2 索引变更、新增字段、数据修复、REORG/RUNSTATS、锁等待应急、HADR 受控切换、表空间扩容、权限收敛、备份恢复、SQL 回放验证和分区维护的专项交付内容。
 - LLM 适配层支持注入 HTTP 客户端，自动化测试覆盖无 Key、成功响应、超时失败和字段补齐。
 - 所有交付物可以人工编辑，确认前后都有版本记录，并能查看最近一次内容变化。
@@ -142,7 +142,7 @@ erDiagram
 - `artifact_revisions`：交付物版本历史，记录 AI 生成、人工编辑、人工确认。
 - `llm_call_logs`：模型请求审计，包括耗时、状态、请求响应和失败原因。
 - `work_order_writeback_logs`：外部工单 Webhook 发送记录，包括 attempt 次数、目标状态、请求 payload、脱敏后的响应 payload 和失败原因。
-- 审计 payload 落库前会做轻量脱敏，避免公开演示或试运行时把误贴的口令、Token、API Key、Authorization/Cookie/session 字段、Webhook 查询密钥或 Basic Auth 密码原样保存。
+- 审计 payload 落库前会做轻量脱敏，避免公开演示或试运行时把误贴的口令、Token、API Key、Authorization/Cookie/session 字段、Webhook 查询串/fragment 密钥或 Basic Auth 密码原样保存。
 - `demo_fixtures`：内置合成案例，保证无外部依赖也能试跑。
 - 外部工单导入当前复用 `cases`，把工单号、脱敏后的链接、标签和元数据写入业务背景；回写 payload 从这些来源信息和 `analysis_runs` 的交付/签收状态生成，通用 Webhook 发送层只负责认证头和 HTTP 投递。后续接入具体 ITSM 时再增加专用外部映射表、字段适配器和厂商状态机。
 
