@@ -178,9 +178,17 @@ def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
         ],
         "nested": {
             "api_key": "qwen-secret-key",
+            "access_key": "oss-access-key",
+            "signature": "payload-signature",
+            "signature=nested-key-secret": "nested-key-value",
             "session_id": "session-secret",
             "safe": "保留普通审计字段",
         },
+        "token=key-secret": "key-secret-value",
+        "message": (
+            "signature=inline-signature access_key=inline-access-key "
+            "access_token=inline-access-token sig=inline-sig"
+        ),
     }
 
     sanitized = sanitize_audit_payload(payload)
@@ -194,6 +202,16 @@ def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
     assert "dXNlcjpwYXNz" not in serialized
     assert "sk-inline-token" not in serialized
     assert "qwen-secret-key" not in serialized
+    assert "oss-access-key" not in serialized
+    assert "payload-signature" not in serialized
+    assert "nested-key-secret" not in serialized
+    assert "nested-key-value" not in serialized
+    assert "key-secret" not in serialized
+    assert "key-secret-value" not in serialized
+    assert "inline-signature" not in serialized
+    assert "inline-access-key" not in serialized
+    assert "inline-access-token" not in serialized
+    assert "inline-sig" not in serialized
     assert "session-secret" not in serialized
     assert "Bearer ***" in serialized
     assert "Basic ***" in serialized
@@ -203,8 +221,16 @@ def test_sanitize_audit_payload_redacts_nested_sensitive_values() -> None:
     assert sanitized["Cookie"] == "***"
     assert "api_key" in sanitized["nested"]
     assert sanitized["nested"]["api_key"] == "***"
+    assert sanitized["nested"]["access_key"] == "***"
+    assert sanitized["nested"]["signature"] == "***"
+    assert sanitized["nested"]["signature=***"] == "***"
     assert sanitized["nested"]["session_id"] == "***"
     assert sanitized["nested"]["safe"] == "保留普通审计字段"
+    assert sanitized["token=***"] == "***"
+    assert "signature=***" in sanitized["message"]
+    assert "access_key=***" in sanitized["message"]
+    assert "access_token=***" in sanitized["message"]
+    assert "sig=***" in sanitized["message"]
 
 
 def test_sanitize_webhook_url_redacts_query_secrets_and_basic_auth() -> None:
@@ -761,6 +787,90 @@ def test_work_order_import_redacts_sensitive_external_url() -> None:
     assert "fragment-secret" not in serialized_writeback
 
 
+def test_work_order_import_redacts_sensitive_metadata_and_labels() -> None:
+    reset_db()
+    client = TestClient(app)
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260613-013",
+            "title": "DB2 工单元数据脱敏验证",
+            "database_type": "DB2 LUW",
+            "target_system": "核心账务",
+            "change_type": "审计边界验证",
+            "labels": ["DB2", "token=label-secret", "Bearer label-bearer"],
+            "metadata": {
+                "requested_by": "ops-bot",
+                "api_key": "metadata-api-key",
+                "signature": "metadata-signature",
+                "nested": {
+                    "access_token": "metadata-access-token",
+                    "signature=nested-key-secret": "nested-key-value",
+                    "safe": "visible",
+                },
+                "message": "password=metadata-password sig=metadata-sig",
+                "token=metadata-key-secret": "metadata-key-value",
+            },
+            "run_analysis": True,
+        },
+    )
+
+    assert import_response.status_code == 200
+    import_payload = import_response.json()
+    assert import_payload["source"]["labels"] == ["DB2", "token=***", "Bearer ***"]
+
+    case_response = client.get(f"/api/cases/{import_payload['case']['id']}")
+    assert case_response.status_code == 200
+    case_payload = case_response.json()
+    assert "工单标签：DB2, token=***, Bearer ***" in case_payload["business_context"]
+    assert "- requested_by: ops-bot" in case_payload["business_context"]
+    assert "- api_key: ***" in case_payload["business_context"]
+    assert "- signature: ***" in case_payload["business_context"]
+    assert (
+        '- nested: {"access_token": "***", "safe": "visible", "signature=***": "***"}'
+        in case_payload["business_context"]
+    )
+    assert "- message: password=*** sig=***" in case_payload["business_context"]
+    assert "- token=***: ***" in case_payload["business_context"]
+
+    run_detail_response = client.get(f"/api/runs/{import_payload['run']['id']}")
+    assert run_detail_response.status_code == 200
+
+    writeback_response = client.get(
+        f"/api/integrations/work-orders/runs/{import_payload['run']['id']}/writeback-payload"
+    )
+    assert writeback_response.status_code == 200
+    writeback_payload = writeback_response.json()
+    assert writeback_payload["source"]["labels"] == ["DB2", "token=***", "Bearer ***"]
+
+    serialized_outputs = "\n".join(
+        json.dumps(payload, ensure_ascii=False)
+        for payload in [
+            import_payload,
+            case_payload,
+            run_detail_response.json(),
+            writeback_payload,
+        ]
+    )
+    for secret in [
+        "label-secret",
+        "label-bearer",
+        "metadata-api-key",
+        "metadata-signature",
+        "metadata-access-token",
+        "metadata-password",
+        "metadata-sig",
+        "nested-key-secret",
+        "nested-key-value",
+        "metadata-key-secret",
+        "metadata-key-value",
+    ]:
+        assert secret not in serialized_outputs
+    assert "visible" in serialized_outputs
+    assert "ops-bot" in serialized_outputs
+
+
 def test_work_order_import_rejects_missing_external_id() -> None:
     reset_db()
     client = TestClient(app)
@@ -902,6 +1012,7 @@ def test_dispatch_work_order_writeback_redacts_audit_url_and_response_body() -> 
     raw_webhook_url = (
         "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
         "?token=secret-token&safe=visible"
+        "#/callback?access_token=fragment-secret&safe=visible"
     )
     settings = SimpleNamespace(
         itsm_webhook_url=raw_webhook_url,
@@ -914,6 +1025,7 @@ def test_dispatch_work_order_writeback_redacts_audit_url_and_response_body() -> 
                 {
                     "received": True,
                     "token": "echoed-token",
+                    "signature": "echoed-signature",
                     "message": "accepted password=plain-secret",
                 },
                 status_code=202,
@@ -927,13 +1039,17 @@ def test_dispatch_work_order_writeback_redacts_audit_url_and_response_body() -> 
     serialized_result = json.dumps(result, ensure_ascii=False)
     assert "hook-password" not in serialized_result
     assert "secret-token" not in serialized_result
+    assert "fragment-secret" not in serialized_result
     assert "echoed-token" not in serialized_result
+    assert "echoed-signature" not in serialized_result
     assert "plain-secret" not in serialized_result
     assert result["url"] == (
         "https://hook-user:***@itsm.example.test/webhook/changeops"
         "?token=%2A%2A%2A&safe=visible"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
     )
     assert result["response"]["token"] == "***"
+    assert result["response"]["signature"] == "***"
     assert result["response"]["message"] == "accepted password=***"
 
 
@@ -967,6 +1083,7 @@ def test_dispatch_work_order_writeback_redacts_network_error_message() -> None:
     raw_webhook_url = (
         "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
         "?token=secret-token&safe=visible"
+        "#/callback?access_token=fragment-secret&safe=visible"
     )
     settings = SimpleNamespace(
         itsm_webhook_url=raw_webhook_url,
@@ -974,7 +1091,8 @@ def test_dispatch_work_order_writeback_redacts_network_error_message() -> None:
     )
     error = httpx.ConnectError(
         "connect failed for https://hook-user:hook-password@itsm.example.test/webhook/changeops"
-        "?token=secret-token&safe=visible with Bearer secret-token"
+        "?token=secret-token&safe=visible#/callback?access_token=fragment-secret "
+        "with Bearer secret-token"
     )
 
     def factory(timeout: float) -> FakeHTTPClient:
@@ -986,12 +1104,15 @@ def test_dispatch_work_order_writeback_redacts_network_error_message() -> None:
         serialized = json.dumps(exc.response_payload, ensure_ascii=False)
         assert "hook-password" not in str(exc)
         assert "secret-token" not in str(exc)
+        assert "fragment-secret" not in str(exc)
         assert "hook-password" not in serialized
         assert "secret-token" not in serialized
+        assert "fragment-secret" not in serialized
         assert "Bearer ***" in str(exc)
         assert exc.response_payload["url"] == (
             "https://hook-user:***@itsm.example.test/webhook/changeops"
             "?token=%2A%2A%2A&safe=visible"
+            "#/callback?access_token=%2A%2A%2A&safe=visible"
         )
     else:
         raise AssertionError("Expected WorkOrderWritebackError for webhook network failure")
@@ -1021,7 +1142,10 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
         captured["settings"] = settings
         return {
             "configured": True,
-            "url": "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible",
+            "url": (
+                "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible"
+                "#/callback?access_token=%2A%2A%2A&safe=visible"
+            ),
             "status_code": 202,
             "accepted": True,
             "response": {"received": True},
@@ -1033,6 +1157,7 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
         lambda: SimpleNamespace(
             itsm_webhook_url=(
                 "https://itsm.example.test/webhook/changeops?token=secret-token&safe=visible"
+                "#/callback?access_token=fragment-secret&safe=visible"
             ),
             itsm_webhook_token="secret-token",
         ),
@@ -1052,9 +1177,11 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
     assert payload["log"]["response_payload"]["status_code"] == 202
     assert payload["log"]["webhook_url"] == (
         "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
     )
     assert payload["log"]["response_payload"]["url"] == (
         "https://itsm.example.test/webhook/changeops?token=%2A%2A%2A&safe=visible"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
     )
     assert payload["payload"]["source"]["external_id"] == "CHG-20260614-002"
     assert payload["payload"]["exports"]["markdown"] == f"http://testserver/cases/1/runs/{run_id}/export"
@@ -1068,6 +1195,10 @@ def test_work_order_writeback_api_dispatches_configured_webhook(monkeypatch) -> 
     assert logs_payload["writebacks"][0]["id"] == payload["log"]["id"]
     assert logs_payload["writebacks"][0]["request_payload"] == payload["payload"]
     assert "secret-token" not in json.dumps(logs_payload["writebacks"][0], ensure_ascii=False)
+    assert "fragment-secret" not in json.dumps(
+        logs_payload["writebacks"][0],
+        ensure_ascii=False,
+    )
 
     run_detail_response = client.get(f"/api/runs/{run_id}")
     assert run_detail_response.status_code == 200
@@ -1177,6 +1308,151 @@ def test_work_order_writeback_api_records_failure_and_retries(monkeypatch) -> No
     final_logs = final_logs_response.json()["writebacks"]
     assert [log["status"] for log in final_logs] == ["sent", "failed"]
     assert [log["attempt_count"] for log in final_logs] == [2, 1]
+
+
+def test_work_order_writeback_api_defensively_redacts_writeback_error(monkeypatch) -> None:
+    reset_db()
+    client = TestClient(app)
+    raw_webhook_url = (
+        "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible"
+        "#/callback?access_token=fragment-secret&safe=visible"
+    )
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260614-006",
+            "title": "DB2 批处理回放验证",
+            "database_type": "DB2 LUW",
+            "target_system": "月结平台",
+            "change_type": "回放验证",
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    monkeypatch.setattr(
+        "app.main.get_settings",
+        lambda: SimpleNamespace(
+            itsm_webhook_url=raw_webhook_url,
+            itsm_webhook_token="secret-token",
+        ),
+    )
+
+    def failing_dispatch(payload, settings):
+        raise WorkOrderWritebackError(
+            "raw failure for "
+            f"{raw_webhook_url} with Bearer secret-token and access_token=inline-secret",
+            {
+                "configured": True,
+                "url": raw_webhook_url,
+                "accepted": False,
+                "response": {
+                    "access_token": "response-access-token",
+                    "signature": "response-signature",
+                    "token=response-key-secret": "response-key-value",
+                    "message": "failed password=plain-secret",
+                },
+            },
+        )
+
+    monkeypatch.setattr("app.main.dispatch_work_order_writeback", failing_dispatch)
+
+    failed_response = client.post(f"/api/integrations/work-orders/runs/{run_id}/writeback")
+
+    assert failed_response.status_code == 502
+    failed_detail = failed_response.json()["detail"]
+    serialized_detail = json.dumps(failed_detail, ensure_ascii=False)
+    assert "hook-password" not in serialized_detail
+    assert "secret-token" not in serialized_detail
+    assert "fragment-secret" not in serialized_detail
+    assert "inline-secret" not in serialized_detail
+    assert "response-access-token" not in serialized_detail
+    assert "response-signature" not in serialized_detail
+    assert "response-key-secret" not in serialized_detail
+    assert "response-key-value" not in serialized_detail
+    assert "plain-secret" not in serialized_detail
+    assert failed_detail["message"].endswith("Bearer *** and access_token=***")
+    assert failed_detail["log"]["response_payload"]["url"] == (
+        "https://hook-user:***@itsm.example.test/webhook/changeops"
+        "?token=%2A%2A%2A&safe=visible"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
+    )
+    assert failed_detail["log"]["response_payload"]["response"] == {
+        "access_token": "***",
+        "signature": "***",
+        "token=***": "***",
+        "message": "failed password=***",
+    }
+
+
+def test_work_order_writeback_api_redacts_unexpected_runtime_error(monkeypatch) -> None:
+    reset_db()
+    client = TestClient(app)
+    raw_webhook_url = (
+        "https://hook-user:hook-password@itsm.example.test/webhook/changeops"
+        "?token=secret-token&safe=visible"
+        "#/callback?access_token=fragment-secret&safe=visible"
+    )
+
+    import_response = client.post(
+        "/api/integrations/work-orders/import",
+        json={
+            "external_id": "CHG-20260614-005",
+            "title": "DB2 表空间扩容变更",
+            "database_type": "DB2 LUW",
+            "target_system": "核心账务",
+            "change_type": "容量变更",
+            "run_analysis": True,
+        },
+    )
+    assert import_response.status_code == 200
+    run_id = import_response.json()["run"]["id"]
+
+    monkeypatch.setattr(
+        "app.main.get_settings",
+        lambda: SimpleNamespace(
+            itsm_webhook_url=raw_webhook_url,
+            itsm_webhook_token="secret-token",
+        ),
+    )
+
+    def failing_dispatch(payload, settings):
+        raise RuntimeError(
+            "unexpected runtime failure for "
+            f"{raw_webhook_url} with Bearer secret-token and password=plain-secret"
+        )
+
+    monkeypatch.setattr("app.main.dispatch_work_order_writeback", failing_dispatch)
+
+    failed_response = client.post(f"/api/integrations/work-orders/runs/{run_id}/writeback")
+
+    assert failed_response.status_code == 502
+    failed_detail = failed_response.json()["detail"]
+    serialized_detail = json.dumps(failed_detail, ensure_ascii=False)
+    assert "hook-password" not in serialized_detail
+    assert "secret-token" not in serialized_detail
+    assert "fragment-secret" not in serialized_detail
+    assert "plain-secret" not in serialized_detail
+    assert "Bearer ***" in failed_detail["message"]
+    assert "password=***" in failed_detail["message"]
+    assert failed_detail["log"]["webhook_url"] == (
+        "https://hook-user:***@itsm.example.test/webhook/changeops"
+        "?token=%2A%2A%2A&safe=visible"
+        "#/callback?access_token=%2A%2A%2A&safe=visible"
+    )
+
+    logs_response = client.get(f"/api/integrations/work-orders/runs/{run_id}/writebacks")
+    assert logs_response.status_code == 200
+    assert "secret-token" not in json.dumps(logs_response.json(), ensure_ascii=False)
+    assert "fragment-secret" not in json.dumps(logs_response.json(), ensure_ascii=False)
+
+    run_detail_response = client.get(f"/api/runs/{run_id}")
+    assert run_detail_response.status_code == 200
+    assert "secret-token" not in json.dumps(run_detail_response.json(), ensure_ascii=False)
+    assert "fragment-secret" not in json.dumps(run_detail_response.json(), ensure_ascii=False)
 
 
 def test_work_order_writeback_api_requires_configured_webhook() -> None:

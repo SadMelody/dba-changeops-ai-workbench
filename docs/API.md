@@ -220,7 +220,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `operation_commands` 可传字符串数组；如果已经有完整 SQL，也可以直接传 `source_sql`、`sql` 或 `change_script`。
 - `labels` 和 `metadata` 会写入业务背景，方便后续人工复核追溯来源。
 - `ticket_url`、`external_url` 或 `url` 会写入业务背景和回写 payload，但 URL 查询串和 fragment 中的 token/key/secret/signature/password 类字段以及 Basic Auth 密码会先脱敏。
-- `metadata`、`labels`、外部响应体和审计 payload 中如果出现 Authorization、Basic Auth、Cookie、credential、session 或常见密码/API Key/Token 字段，落库和 API 返回前会统一遮蔽为审计安全值。
+- `metadata`、`labels`、外部响应体和审计 payload 中如果出现 Authorization、Basic Auth、Cookie、credential、session 或常见密码/API Key/Access Key/Signature/Token 字段，落库和 API 返回前会统一遮蔽为审计安全值。
 - `run_analysis: true` 会在导入后立即生成交付方案；不传则只创建案例。
 
 状态码：
@@ -281,7 +281,7 @@ FastAPI 自动生成的交互式文档也可访问：
 - `ITSM_WEBHOOK_URL`：Webhook 地址，必填；未配置时接口返回 `422`。
 - `ITSM_WEBHOOK_TOKEN`：可选认证 Token；配置后请求头会带 `Authorization: Bearer <token>`。
 
-审计边界：实际发送会使用原始 `ITSM_WEBHOOK_URL` 和可选 Bearer Token；API 响应和 `work_order_writeback_logs` 中保存的 URL 会遮蔽查询串和 fragment 中的 token/key/signature 类字段以及 Basic Auth 密码，外部响应体、异常消息和审计 payload 中的 Authorization、Basic Auth、Cookie、credential、session、密码、API Key 和 Token 字段也会按审计规则脱敏后保存。
+审计边界：实际发送会使用原始 `ITSM_WEBHOOK_URL` 和可选 Bearer Token；API 响应和 `work_order_writeback_logs` 中保存的 URL 会遮蔽查询串和 fragment 中的 token/key/signature 类字段以及 Basic Auth 密码，外部响应体、异常消息和审计 payload 中的 Authorization、Basic Auth、Cookie、credential、session、密码、API Key、Access Key、Signature 和 Token 字段也会按审计规则脱敏后保存。
 
 响应示例：
 
@@ -399,7 +399,7 @@ FastAPI 自动生成的交互式文档也可访问：
 
 ### `POST /api/cases/{case_id}/analyze`
 
-触发一次 AI 分析。未配置 `LLM_API_KEY` 或模型调用失败时，系统会自动使用场景化离线兜底，并写入 LLM 调用审计。审计 payload 落库前会遮蔽常见密码、Token、API Key、Authorization/Cookie/session 字段和连接串口令。
+触发一次 AI 分析。未配置 `LLM_API_KEY` 或模型调用失败时，系统会自动使用场景化离线兜底，并写入 LLM 调用审计。审计 payload 落库前会遮蔽常见密码、Token、API Key、Access Key、Signature、Authorization/Cookie/session 字段和连接串口令。
 
 响应示例：
 

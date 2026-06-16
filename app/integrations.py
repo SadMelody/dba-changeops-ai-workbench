@@ -154,6 +154,15 @@ def _string_list(data: dict[str, Any], key: str) -> list[str]:
     return items
 
 
+def _safe_string_list(data: dict[str, Any], key: str) -> list[str]:
+    items: list[str] = []
+    for item in _string_list(data, key):
+        safe_item = str(sanitize_audit_payload(item)).strip()
+        if safe_item:
+            items.append(safe_item)
+    return items
+
+
 def _metadata_lines(metadata: Any) -> list[str]:
     if metadata in (None, ""):
         return []
@@ -164,11 +173,13 @@ def _metadata_lines(metadata: Any) -> list[str]:
         value = metadata[key]
         if value in (None, ""):
             continue
-        if isinstance(value, (dict, list)):
-            rendered = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        safe_entry = sanitize_audit_payload({key: value})
+        safe_key, safe_value = next(iter(safe_entry.items()))
+        if isinstance(safe_value, (dict, list)):
+            rendered = json.dumps(safe_value, ensure_ascii=False, sort_keys=True)
         else:
-            rendered = str(value)
-        lines.append(f"- {key}: {rendered}")
+            rendered = str(safe_value)
+        lines.append(f"- {safe_key}: {rendered}")
     return lines
 
 
@@ -192,7 +203,7 @@ def normalize_work_order_payload(data: dict[str, Any]) -> dict[str, Any]:
     if not title:
         raise ValueError("标题不能为空")
 
-    labels = _string_list(data, "labels")
+    labels = _safe_string_list(data, "labels")
     metadata = _metadata_lines(data.get("metadata"))
     external_url = _text(data, "external_url", "ticket_url", "url")
     safe_external_url = sanitize_webhook_url(external_url)

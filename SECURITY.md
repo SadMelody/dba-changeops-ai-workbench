@@ -42,8 +42,10 @@ The application keeps audit evidence while reducing secret exposure:
 - LLM request and response payloads are sanitized before persistence.
 - LLM provider failure messages are sanitized before they are stored in analysis
   runs or call logs.
-- Common passwords, API keys, tokens, and database connection string passwords
-  are redacted in audit payloads.
+- Common passwords, API keys, access keys, signatures, tokens, and database
+  connection string passwords are redacted in audit payloads.
+- Sensitive-looking dictionary key names, such as `token=...` or
+  `signature=...`, are sanitized before audit payloads are stored or returned.
 - Authorization, Basic Auth, Cookie, credential, and session-style audit fields
   are redacted before persistence.
 - Webhook dispatch uses the configured raw `ITSM_WEBHOOK_URL`, but persisted
@@ -53,6 +55,8 @@ The application keeps audit evidence while reducing secret exposure:
 - Basic Auth passwords in Webhook URLs are redacted.
 - External work-order URLs are normalized through the same URL redaction rules
   before they are stored in case context or returned in writeback payloads.
+- External work-order labels and metadata are sanitized before they are stored
+  in case context, sent to the LLM adapter, or returned in writeback payloads.
 - External Webhook response bodies are sanitized before they are stored in
   writeback logs or returned through JSON APIs.
 - Webhook network failure messages are sanitized before they are stored in

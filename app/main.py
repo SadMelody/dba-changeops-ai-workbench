@@ -21,6 +21,7 @@ from app.integrations import (
     normalize_work_order_payload,
     sanitize_webhook_url,
 )
+from app.llm import sanitize_audit_payload
 from app.models import Artifact, Case
 from app.services import (
     analyze_case,
@@ -196,6 +197,30 @@ def _writeback_log_payload(log) -> dict[str, Any]:
     }
 
 
+def _writeback_audit_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        payload: dict[str, Any] = {}
+        for key, item in value.items():
+            safe_entry = sanitize_audit_payload({key: item})
+            safe_key = next(iter(safe_entry), key)
+            normalized_key = str(key).lower().replace("-", "_")
+            if isinstance(item, str) and normalized_key in {
+                "url",
+                "webhook_url",
+                "external_url",
+                "ticket_url",
+            }:
+                payload[safe_key] = sanitize_webhook_url(item)
+            elif safe_entry.get(safe_key) == "***":
+                payload[safe_key] = "***"
+            else:
+                payload[safe_key] = _writeback_audit_payload(item)
+        return payload
+    if isinstance(value, list):
+        return [_writeback_audit_payload(item) for item in value]
+    return sanitize_audit_payload(value)
+
+
 def _run_detail_payload(run) -> dict[str, Any]:
     return {
         **_run_payload(run),
@@ -227,20 +252,23 @@ def _send_work_order_writeback(db: Session, run, request: Request) -> dict[str, 
     try:
         webhook = dispatch_work_order_writeback(payload, settings)
     except WorkOrderWritebackError as exc:
-        log = mark_work_order_writeback_failed(db, log, str(exc), exc.response_payload)
+        error_message = str(sanitize_audit_payload(str(exc)))
+        response_payload = _writeback_audit_payload(exc.response_payload)
+        log = mark_work_order_writeback_failed(db, log, error_message, response_payload)
         raise HTTPException(
             status_code=502,
             detail={
-                "message": str(exc),
+                "message": error_message,
                 "log": _writeback_log_payload(log),
             },
         ) from exc
     except RuntimeError as exc:
-        log = mark_work_order_writeback_failed(db, log, str(exc))
+        error_message = str(sanitize_audit_payload(str(exc)))
+        log = mark_work_order_writeback_failed(db, log, error_message)
         raise HTTPException(
             status_code=502,
             detail={
-                "message": str(exc),
+                "message": error_message,
                 "log": _writeback_log_payload(log),
             },
         ) from exc

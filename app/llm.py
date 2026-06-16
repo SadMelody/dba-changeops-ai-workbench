@@ -17,7 +17,10 @@ from app.models import Case
 SENSITIVE_TEXT_PATTERNS = [
     (
         re.compile(
-            r"(?i)\b(password|passwd|pwd|api[_-]?key|token|secret)\b\s*[:=]\s*([^\s,;]+)"
+            r"(?i)\b("
+            r"password|passwd|pwd|api[_-]?key|access[_-]?key|access[_-]?token|"
+            r"signature|sig|token|secret"
+            r")\b\s*[:=]\s*([^\s,;]+)"
         ),
         r"\1=***",
     ),
@@ -27,8 +30,11 @@ SENSITIVE_TEXT_PATTERNS = [
 ]
 
 SENSITIVE_KEY_MARKERS = (
+    "access_key",
+    "accesskey",
     "api_key",
     "apikey",
+    "signature",
     "token",
     "secret",
     "password",
@@ -44,6 +50,7 @@ SENSITIVE_KEY_NAMES = {
     "cookie",
     "credential",
     "credentials",
+    "sig",
     "session",
     "session_id",
     "sessionid",
@@ -148,19 +155,24 @@ def sanitize_audit_payload(value: Any) -> Any:
     if isinstance(value, dict):
         sanitized: dict[str, Any] = {}
         for key, item in value.items():
+            safe_key = _sanitize_audit_text(str(key))
             if _is_sensitive_key(str(key)):
-                sanitized[key] = "***"
+                sanitized[safe_key] = "***"
             else:
-                sanitized[key] = sanitize_audit_payload(item)
+                sanitized[safe_key] = sanitize_audit_payload(item)
         return sanitized
     if isinstance(value, list):
         return [sanitize_audit_payload(item) for item in value]
     if isinstance(value, str):
-        text = value
-        for pattern, replacement in SENSITIVE_TEXT_PATTERNS:
-            text = pattern.sub(replacement, text)
-        return text
+        return _sanitize_audit_text(value)
     return value
+
+
+def _sanitize_audit_text(value: str) -> str:
+    text = value
+    for pattern, replacement in SENSITIVE_TEXT_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
 
 
 def _is_sensitive_key(key: str) -> bool:
