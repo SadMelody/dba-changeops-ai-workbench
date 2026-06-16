@@ -189,6 +189,19 @@ sequenceDiagram
 - 离线兜底仍按变更类型保留 DBA 语义，例如索引案例包含 EXPLAIN、RUNSTATS 和 DROP INDEX，锁等待案例包含应急指挥、会话处置边界和监控 SQL。
 - 产品讲解时可以清楚说明“可控 AI 工作流”与“聊天机器人”的区别。
 
+## 端到端业务链路
+
+系统围绕一条固定链路组织页面、API、数据模型和审计记录：
+
+| 环节 | 入口 | 主要数据 | 边界说明 |
+| --- | --- | --- | --- |
+| 案例输入 | 首页表单、`/api/integrations/work-orders/import` | `cases` | 手工输入和外部工单导入最终都进入同一类变更案例，不为演示路径维护第二套数据。 |
+| AI 生成 | 案例页生成按钮、`POST /demo/start`、`POST /demo/complete` | `analysis_runs`、`llm_call_logs`、`artifacts` | 模型调用和离线兜底走同一个服务层，审计日志先脱敏再落库。 |
+| 人工复核 | 交付物编辑、确认、整包确认 API | `artifacts`、`artifact_revisions` | AI 初稿、人工编辑和确认事件都进入版本记录，确认状态只表达复核进度，不替代 DBA 判断。 |
+| 签收 | 结果页签收、`POST /api/runs/{id}/signoff` | `analysis_runs` | 签收对应一次分析运行的整包材料；签收后编辑任意交付物会让整包回到待签收。 |
+| 导出 | `/cases/{id}/export`、`/cases/{id}/export.pdf` | `cases`、`analysis_runs`、`artifacts`、`artifact_revisions`、`llm_call_logs` | Markdown/PDF 复用页面同一套服务层摘要，避免页面和交付文件口径分裂。 |
+| 工单回写 | writeback payload、Webhook 发送、失败重试 API | `work_order_writeback_logs` | 通用 Webhook 只发送标准 payload；日志和 API 返回值必须脱敏，厂商状态机留给后续 adapter。 |
+
 导出层：
 
 - Markdown/PDF 共享同一套案例、运行、交付物和审计数据。
