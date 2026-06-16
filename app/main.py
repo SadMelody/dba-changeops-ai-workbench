@@ -18,7 +18,7 @@ from app.integrations import (
     WorkOrderWritebackError,
     build_work_order_writeback_payload,
     dispatch_work_order_writeback,
-    normalize_work_order_payload,
+    import_work_order_change,
     sanitize_webhook_url,
 )
 from app.llm import sanitize_audit_payload
@@ -489,25 +489,21 @@ async def create_case_api(request: Request, db: Session = Depends(get_db)) -> JS
 async def import_work_order_api(request: Request, db: Session = Depends(get_db)) -> JSONResponse:
     data = await _json_object(request)
     try:
-        normalized = normalize_work_order_payload(data)
-        case = create_case(db, normalized["case_data"])
+        result = import_work_order_change(db, data)
     except ValueError as exc:
         raise _validation_error(exc) from exc
 
     payload: dict[str, Any] = {
         "message": "外部工单已导入",
-        "source": normalized["source"],
-        "case": _case_payload(case),
-        "analyze_url": f"/api/cases/{case.id}/analyze",
+        "source": result.source,
+        "case": _case_payload(result.case),
+        "analyze_url": f"/api/cases/{result.case.id}/analyze",
     }
-    if normalized["run_analysis"]:
-        run = analyze_case(db, case)
-        refreshed_case = get_case(db, case.id) or case
+    if result.run:
         payload.update(
             {
                 "message": "外部工单已导入并生成交付方案",
-                "case": _case_payload(refreshed_case),
-                "run": _run_payload(run),
+                "run": _run_payload(result.run),
             }
         )
     return JSONResponse(payload)

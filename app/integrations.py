@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
 from app.llm import sanitize_audit_payload
-from app.services import delivery_summary, format_dt, provider_label, run_signoff_summary, status_label
+from app.services import (
+    analyze_case,
+    create_case,
+    delivery_summary,
+    format_dt,
+    get_case,
+    provider_label,
+    run_signoff_summary,
+    status_label,
+)
 
 
 WORK_ORDER_FIELD_LABELS = {
@@ -50,6 +60,13 @@ class WorkOrderWritebackError(RuntimeError):
     def __init__(self, message: str, response_payload: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.response_payload = response_payload or {}
+
+
+@dataclass(frozen=True)
+class WorkOrderImportResult:
+    source: dict[str, Any]
+    case: Any
+    run: Any | None = None
 
 
 def _is_sensitive_url_query_key(key: str) -> bool:
@@ -253,6 +270,16 @@ def normalize_work_order_payload(data: dict[str, Any]) -> dict[str, Any]:
         },
         "run_analysis": _bool(data, "run_analysis"),
     }
+
+
+def import_work_order_change(db: Any, data: dict[str, Any]) -> WorkOrderImportResult:
+    normalized = normalize_work_order_payload(data)
+    case = create_case(db, normalized["case_data"])
+    run = None
+    if normalized["run_analysis"]:
+        run = analyze_case(db, case)
+        case = get_case(db, case.id) or case
+    return WorkOrderImportResult(source=normalized["source"], case=case, run=run)
 
 
 def extract_work_order_reference(case: Any) -> dict[str, Any]:
