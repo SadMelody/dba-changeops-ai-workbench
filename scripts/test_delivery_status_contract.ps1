@@ -101,6 +101,15 @@ try {
     $httpRejected = Invoke-DeliveryStatus @("-ReadmePath", $readme, "-SkipRuntime", "-DemoUrl", "http://example.test/demo")
     Add-Check "http-url:exit-nonzero" ($httpRejected.exit_code -ne 0) "non-local http DemoUrl should fail unless -AllowHttp is supplied"
     Add-Check "http-url:message" ($httpRejected.raw -like "*DemoUrl should use https://*") "http rejection should explain the HTTPS requirement"
+
+    $networkFailure = Invoke-DeliveryStatus @("-ReadmePath", $readme, "-SkipRuntime", "-DemoUrl", "https://127.0.0.1:9")
+    Add-Check "online-demo-network-failure:exit-zero" ($networkFailure.exit_code -eq 0) "non-strict status should preserve JSON output when online verification cannot connect"
+    Add-Check "online-demo-network-failure:json" ($null -ne $networkFailure.payload) "network failure status should remain parseable"
+    if ($networkFailure.payload) {
+        $onlineDemoFailure = @($networkFailure.payload.failures | Where-Object { $_.name -eq "online:demo" } | Select-Object -First 1)
+        Add-Check "online-demo-network-failure:detail-present" ($onlineDemoFailure.Count -eq 1 -and $onlineDemoFailure[0].detail -like "*verify_online_release.ps1 failed with exit code*:*") "online demo failure should include child script failure detail"
+        Add-Check "online-demo-network-failure:not-opaque" ($onlineDemoFailure.Count -eq 1 -and $onlineDemoFailure[0].detail -notmatch "failed with exit code 1$") "online demo failure should not collapse to an opaque exit code"
+    }
 }
 finally {
     if (Test-Path -LiteralPath $tempRoot) {

@@ -98,6 +98,41 @@ function Test-ReadyPayload {
     return $Result.exit_code -eq 0 -and $null -ne $Result.payload -and [bool]$Result.payload.ready
 }
 
+function Format-RawScriptFailure {
+    param(
+        [pscustomobject]$Result,
+        [int]$MaxLength = 240
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Result.raw)) {
+        return "$($Result.label) failed with exit code $($Result.exit_code)"
+    }
+
+    $lines = @(
+        $Result.raw -split "`r?`n" |
+            ForEach-Object {
+                ($_ -replace "`e\[[0-9;]*[A-Za-z]", "").Trim()
+            } |
+            Where-Object {
+                -not [string]::IsNullOrWhiteSpace($_) -and
+                -not $_.StartsWith("==>")
+            }
+    )
+
+    $detail = if ($lines.Count -gt 0) {
+        $lines[-1]
+    }
+    else {
+        ($Result.raw -replace "`e\[[0-9;]*[A-Za-z]", "").Trim()
+    }
+
+    if ($detail.Length -gt $MaxLength) {
+        $detail = $detail.Substring(0, $MaxLength - 3) + "..."
+    }
+
+    return "$($Result.label) failed with exit code $($Result.exit_code): $detail"
+}
+
 function Get-JsonScriptDetail {
     param(
         [pscustomobject]$Result,
@@ -125,7 +160,7 @@ function Get-JsonScriptDetail {
                 return "$($Result.label) failed checks: " + ($failedNames -join ", ")
             }
         }
-        return "$($Result.label) failed with exit code $($Result.exit_code)"
+        return Format-RawScriptFailure $Result
     }
 
     if ($null -eq $Result.payload) {
